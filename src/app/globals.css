@@ -1,26 +1,36 @@
+@import "../styles/colors.css";
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--coinzy-canvas);
+  --color-surface: var(--coinzy-surface);
+  --color-primary: var(--coinzy-primary);
+  --color-primary-hover: var(--coinzy-primary-hover);
+  --color-primary-active: var(--coinzy-primary-active);
+  --color-text: var(--coinzy-text);
+  --color-text-muted: var(--coinzy-text-muted);
+  --color-border: var(--coinzy-border);
+  --color-input-bg: var(--coinzy-input-bg);
+  --color-logo-bg: var(--coinzy-logo-bg);
+  --color-logo-accent: var(--coinzy-logo-accent);
+  --color-success-ring: var(--coinzy-success-ring);
+  --color-success-check: var(--coinzy-success-check);
+  --color-expert-sidebar: var(--coinzy-expert-sidebar);
+  --color-expert-sidebar-foreground: var(--coinzy-expert-sidebar-foreground);
+  --color-expert-sidebar-muted: var(--coinzy-expert-sidebar-muted);
+  --color-expert-dashboard-canvas: var(--coinzy-expert-dashboard-canvas);
+  --color-expert-queue-accent-blue: var(--coinzy-expert-queue-accent-blue);
+  --color-expert-queue-accent-green: var(--coinzy-expert-queue-accent-green);
+  --color-expert-draft-accent: var(--coinzy-expert-draft-accent);
+  --color-expert-draft-banner: var(--coinzy-expert-draft-banner);
+  --color-expert-draft-banner-border: var(--coinzy-expert-draft-banner-border);
+  --color-expert-draft-banner-text: var(--coinzy-expert-draft-banner-text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--coinzy-canvas);
+  color: var(--coinzy-text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }

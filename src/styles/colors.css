@@ -1,0 +1,30 @@
+/**
+ * Coinzy — design tokens (single source of truth for color).
+ * Referenced from globals.css and available as CSS variables anywhere.
+ */
+:root {
+  --coinzy-canvas: #f5f3f0;
+  --coinzy-surface: #ffffff;
+  --coinzy-primary: #7b3f40;
+  --coinzy-primary-hover: #682f2f;
+  --coinzy-primary-active: #5a2929;
+  --coinzy-text: #111111;
+  --coinzy-text-muted: #6b7280;
+  --coinzy-border: #e5e2dc;
+  --coinzy-input-bg: #f0eeea;
+  --coinzy-logo-bg: #1c1917;
+  --coinzy-logo-accent: #4ade80;
+  --coinzy-success-ring: #e8f5e9;
+  --coinzy-success-check: #2e7d32;
+  /* Expert panel dashboard (swap mock module when API is ready) */
+  --coinzy-expert-sidebar: #4d2c2c;
+  --coinzy-expert-sidebar-foreground: #f8f6f4;
+  --coinzy-expert-sidebar-muted: rgba(248, 246, 244, 0.65);
+  --coinzy-expert-dashboard-canvas: #f8f9fa;
+  --coinzy-expert-queue-accent-blue: #2563eb;
+  --coinzy-expert-queue-accent-green: #15803d;
+  --coinzy-expert-draft-accent: #e5a00d;
+  --coinzy-expert-draft-banner: #ecfdf5;
+  --coinzy-expert-draft-banner-border: #bbf7d0;
+  --coinzy-expert-draft-banner-text: #166534;
+}
