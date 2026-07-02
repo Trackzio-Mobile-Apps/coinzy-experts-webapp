@@ -20,9 +20,9 @@ export default function ForgotPasswordPage() {
         <Logo className="mb-8" />
 
         <div className="mb-8 space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-text">
+          {/* <h1 className="text-2xl font-semibold tracking-tight text-text">
             Forgot password?
-          </h1>
+          </h1> */}
           <p className="text-sm leading-relaxed text-text-muted">
             No worries, we&apos;ll send you reset instructions to your email.
           </p>

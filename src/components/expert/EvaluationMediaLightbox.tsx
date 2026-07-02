@@ -1,6 +1,6 @@
 "use client";
 
-import type { RequestMediaItem } from "@/data/expert-evaluation-request.mock";
+import type { RequestMediaItem } from "@/lib/expert/types";
 import { useCallback, useEffect, useState } from "react";
 
 type EvaluationMediaLightboxProps = {

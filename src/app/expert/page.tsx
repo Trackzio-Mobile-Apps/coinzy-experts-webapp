@@ -1,9 +1,5 @@
-import { hasExpertAccessSession } from "@/lib/expert-session";
 import { redirect } from "next/navigation";
 
-export default async function ExpertIndexPage() {
-  if (await hasExpertAccessSession()) {
-    redirect("/expert/queue");
-  }
+export default function ExpertIndexPage() {
   redirect("/expert/login");
 }

@@ -1,34 +1,7 @@
-import { MOCK_QUEUE_REQUESTS } from "@/data/expert-panel.mock";
-
-/** Demo: this queue id shows the “taken by another expert” screen. */
-const MOCK_UNAVAILABLE_REQ_IDS = new Set<string>(["00010"]);
-
-export type RequestMediaItem =
-  | { kind: "image"; src: string; alt: string }
-  | { kind: "video"; poster: string; alt: string };
-
-export type EvaluationRequestDetail = {
-  reqId: string;
-  unavailable: boolean;
-  deadlineDays: number;
-  submittedDisplay: string;
-  userNotes: string;
-  media: RequestMediaItem[];
-};
-
-export type EvaluationFormFieldDef = {
-  key: string;
-  label: string;
-  multiline?: boolean;
-  inputMode?: "decimal" | "numeric" | "text";
-};
-
-export type EvaluationFormSectionDef = {
-  id: string;
-  stepLabel: string;
-  title: string;
-  fields: readonly EvaluationFormFieldDef[];
-};
+import type {
+  EvaluationFormSectionDef,
+  EvaluationFormState,
+} from "@/lib/expert/types";
 
 export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
   {
@@ -124,8 +97,6 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
   },
 ];
 
-export type EvaluationFormState = Record<string, string>;
-
 const FORM_KEYS: string[] = EVALUATION_FORM_SECTIONS.flatMap((s) =>
   s.fields.map((f) => f.key),
 );
@@ -159,58 +130,4 @@ export function isSectionComplete(
   const sec = EVALUATION_FORM_SECTIONS.find((s) => s.id === sectionId);
   if (!sec) return false;
   return sec.fields.every((f) => (form[f.key] ?? "").trim().length > 0);
-}
-
-const DEMO_USER_NOTES =
-  "Family heirloom; stored in a cloth pouch for decades. Please assess whether cleaning would help or hurt value. Obverse has a small rim nick at 2 o'clock.";
-
-function defaultMedia(): RequestMediaItem[] {
-  return [
-    {
-      kind: "image",
-      src: "https://picsum.photos/seed/coinzy-obv/480/480",
-      alt: "Coin obverse",
-    },
-    {
-      kind: "image",
-      src: "https://picsum.photos/seed/coinzy-rev/480/480",
-      alt: "Coin reverse",
-    },
-    {
-      kind: "image",
-      src: "https://picsum.photos/seed/coinzy-edge/480/480",
-      alt: "Edge detail",
-    },
-    {
-      kind: "video",
-      poster: "https://picsum.photos/seed/coinzy-video/480/480",
-      alt: "User-submitted rotation video",
-    },
-    {
-      kind: "image",
-      src: "https://picsum.photos/seed/coinzy-macro/480/480",
-      alt: "Macro surface",
-    },
-    {
-      kind: "image",
-      src: "https://picsum.photos/seed/coinzy-scale/480/480",
-      alt: "Scale reference",
-    },
-  ];
-}
-
-export function getMockEvaluationRequestDetail(
-  reqId: string,
-): EvaluationRequestDetail | null {
-  const row = MOCK_QUEUE_REQUESTS.find((r) => r.reqId === reqId);
-  if (!row) return null;
-
-  return {
-    reqId: row.reqId,
-    unavailable: MOCK_UNAVAILABLE_REQ_IDS.has(row.reqId),
-    deadlineDays: row.deadlineDays,
-    submittedDisplay: row.submittedDisplay,
-    userNotes: DEMO_USER_NOTES,
-    media: defaultMedia(),
-  };
 }

@@ -1,20 +1,28 @@
 "use client";
 
+import type { EvaluationFormState } from "@/lib/expert/types";
 import {
   createInitialEvaluationFormState,
   evaluateFormProgress,
   EVALUATION_FORM_SECTIONS,
-  type EvaluationFormState,
-  type EvaluationRequestDetail,
   isSectionComplete,
-} from "@/data/expert-evaluation-request.mock";
+} from "@/lib/expert/evaluationForm";
+import {
+  clearEvaluationDraft,
+  loadEvaluationDraft,
+  saveEvaluationDraft,
+} from "@/lib/expert/evaluationDraftStorage";
+import { formatRequestId } from "@/lib/expert/format";
+import { submitReport } from "@/lib/expert/reportsService";
+import type { EvaluationRequestDetail } from "@/lib/expert/types";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EvaluationMediaLightbox } from "./EvaluationMediaLightbox";
 
 type ExpertEvaluationRequestViewProps = {
   detail: EvaluationRequestDetail;
+  onSubmitted?: () => void | Promise<void>;
 };
 
 const inputClass =
@@ -106,6 +114,11 @@ function MediaAndNotes({
     <aside className="space-y-6 self-start lg:sticky lg:top-6">
       <section className="rounded-2xl border border-border/80 bg-surface p-4 shadow-sm sm:p-5">
         <h2 className={labelClass}>Coin images & videos</h2>
+        {detail.media.length === 0 ? (
+          <p className="mt-4 text-sm text-text-muted">
+            No media attached to this request.
+          </p>
+        ) : (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
           {detail.media.map((m, i) => (
             <button
@@ -139,6 +152,7 @@ function MediaAndNotes({
             </button>
           ))}
         </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-border/80 bg-surface p-4 shadow-sm sm:p-5">
@@ -168,8 +182,9 @@ function RequestHeader({
           Coin identification & evaluation request
         </h1>
         <p className="mt-2 font-mono text-sm font-semibold text-text">
-          REQ-ID {detail.reqId}
+          REQ-ID {formatRequestId(detail.requestId)}
         </p>
+        <p className="mt-1 text-sm font-medium text-text">{detail.coinName}</p>
         <p className="mt-1 text-sm text-text-muted">{detail.submittedDisplay}</p>
         <p className="mt-3">
           <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-950 ring-1 ring-amber-700/20">
@@ -201,14 +216,45 @@ function RequestHeader({
 
 export function ExpertEvaluationRequestView({
   detail,
+  onSubmitted,
 }: ExpertEvaluationRequestViewProps) {
   const formId = "expert-evaluation-form";
-  const [form, setForm] = useState(createInitialEvaluationFormState);
+  const [form, setForm] = useState<EvaluationFormState>(() => {
+    return (
+      loadEvaluationDraft(detail.requestId) ??
+      createInitialEvaluationFormState()
+    );
+  });
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    saveEvaluationDraft(detail.requestId, form);
+  }, [detail.requestId, form]);
 
   const setField = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!detail.canSubmit) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await submitReport(detail.requestId, form);
+      clearEvaluationDraft(detail.requestId);
+      await onSubmitted?.();
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Unable to submit report.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (detail.unavailable) {
     return (
@@ -220,7 +266,9 @@ export function ExpertEvaluationRequestView({
           <h1 className="mt-1 text-xl font-semibold tracking-tight text-text sm:text-2xl">
             Coin identification & evaluation request
           </h1>
-          <p className="mt-2 font-mono text-sm text-text">REQ-ID {detail.reqId}</p>
+          <p className="mt-2 font-mono text-sm text-text">
+            REQ-ID {formatRequestId(detail.requestId)}
+          </p>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-2 lg:items-stretch">
@@ -258,17 +306,16 @@ export function ExpertEvaluationRequestView({
 
       <EvaluationProgressStepper form={form} />
 
+      {submitError ? (
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {submitError}
+        </p>
+      ) : null}
+
       <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-start xl:grid-cols-[minmax(0,24rem)_1fr]">
         <MediaAndNotes detail={detail} onOpen={setLightbox} />
 
-        <form
-          id={formId}
-          className="min-w-0"
-          onSubmit={(e) => {
-            e.preventDefault();
-            window.alert("Submit report — demo only (no backend yet).");
-          }}
-        >
+        <form id={formId} className="min-w-0" onSubmit={handleSubmit}>
           <div className="space-y-10">
             {EVALUATION_FORM_SECTIONS.map((section, si) => (
               <section
@@ -328,9 +375,10 @@ export function ExpertEvaluationRequestView({
           <div className="mt-10 hidden justify-end border-t border-border/60 pt-6 lg:flex">
             <button
               type="submit"
-              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover"
+              disabled={!detail.canSubmit || submitting}
+              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:opacity-50"
             >
-              Submit report
+              {submitting ? "Submitting…" : "Submit report"}
             </button>
           </div>
         </form>
@@ -340,9 +388,10 @@ export function ExpertEvaluationRequestView({
         <button
           type="submit"
           form={formId}
-          className="w-full rounded-lg bg-primary py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover"
+          disabled={!detail.canSubmit || submitting}
+          className="w-full rounded-lg bg-primary py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:opacity-50"
         >
-          Submit report
+          {submitting ? "Submitting…" : "Submit report"}
         </button>
       </div>
 

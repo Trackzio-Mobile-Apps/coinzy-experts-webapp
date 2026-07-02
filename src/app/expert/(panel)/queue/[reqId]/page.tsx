@@ -1,28 +1,25 @@
-import { ExpertEvaluationRequestView } from "@/components/expert/ExpertEvaluationRequestView";
-import { getMockEvaluationRequestDetail } from "@/data/expert-evaluation-request.mock";
+import { ExpertQueueRequestPageClient } from "@/components/expert/ExpertQueueRequestPageClient";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 type PageProps = {
   params: Promise<{ reqId: string }>;
 };
 
-export async function generateMetadata({
-  params,
-}: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { reqId } = await params;
-  const detail = getMockEvaluationRequestDetail(reqId);
-  if (!detail) return { title: "Request" };
   return {
-    title: `REQ-${detail.reqId}`,
+    title: `Request ${reqId.slice(-8).toUpperCase()}`,
     description: "Coin identification and evaluation request",
   };
 }
 
 export default async function ExpertQueueRequestPage({ params }: PageProps) {
   const { reqId } = await params;
-  const detail = getMockEvaluationRequestDetail(reqId);
-  if (!detail) notFound();
 
-  return <ExpertEvaluationRequestView detail={detail} />;
+  return (
+    <Suspense fallback={<p className="text-sm text-text-muted">Loading…</p>}>
+      <ExpertQueueRequestPageClient requestId={reqId} />
+    </Suspense>
+  );
 }

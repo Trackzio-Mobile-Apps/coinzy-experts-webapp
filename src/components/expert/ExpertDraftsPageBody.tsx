@@ -1,12 +1,17 @@
-import type { DraftItem } from "@/data/expert-panel.mock";
-import { MOCK_DRAFTS_PREVIEW_EMPTY } from "@/data/expert-panel.mock";
+import type { DraftListItem } from "@/lib/expert/types";
+import { formatRequestId } from "@/lib/expert/format";
+import Link from "next/link";
 
 type ExpertDraftsPageBodyProps = {
-  items: DraftItem[];
+  items: DraftListItem[];
+  isLoading?: boolean;
 };
 
-export function ExpertDraftsPageBody({ items }: ExpertDraftsPageBodyProps) {
-  const showEmpty = MOCK_DRAFTS_PREVIEW_EMPTY || items.length === 0;
+export function ExpertDraftsPageBody({
+  items,
+  isLoading = false,
+}: ExpertDraftsPageBodyProps) {
+  const showEmpty = !isLoading && items.length === 0;
   const count = items.length;
 
   return (
@@ -14,35 +19,31 @@ export function ExpertDraftsPageBody({ items }: ExpertDraftsPageBodyProps) {
       <div className="mb-6">
         <h2 className="text-2xl font-semibold tracking-tight text-text">Drafts</h2>
         <p className="mt-1 text-sm text-text-muted">
-          Evaluations you&apos;ve started but not yet submitted
+          Accepted evaluations saved locally until you submit a report
         </p>
       </div>
 
-      {showEmpty ? (
+      {isLoading ? (
+        <p className="text-sm text-text-muted">Loading drafts…</p>
+      ) : showEmpty ? (
         <div className="flex justify-center px-2">
           <div className="w-full max-w-xl rounded-2xl border border-border/70 bg-surface px-8 py-16 text-center shadow-sm sm:px-12 sm:py-20">
-            <p className="text-lg font-semibold text-text">Drafts Page</p>
+            <p className="text-lg font-semibold text-text">No drafts yet</p>
             <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              This page will show incomplete evaluations.
+              Accept a request from your queue to start an evaluation. Progress is
+              saved in your browser until you submit.
             </p>
           </div>
         </div>
       ) : (
         <>
-          <div
-            className="mb-6 rounded-xl border border-expert-draft-banner-border bg-expert-draft-banner px-4 py-3 text-sm text-expert-draft-banner-text sm:px-5"
-            role="status"
-          >
-            Drafts auto-save every 2 minutes. Your progress is never lost.
-          </div>
-
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-text-muted">
             {count} {count === 1 ? "draft" : "drafts"} in progress
           </p>
 
           <ul className="space-y-4">
             {items.map((row) => (
-              <li key={row.reqId}>
+              <li key={row.id}>
                 <article className="rounded-xl border border-border/80 border-l-4 border-l-expert-draft-accent bg-surface p-4 shadow-sm sm:p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1 space-y-3">
@@ -64,7 +65,7 @@ export function ExpertDraftsPageBody({ items }: ExpertDraftsPageBodyProps) {
                         </div>
                       </div>
                       <p className="font-mono text-base font-semibold text-text">
-                        REQ-ID {row.reqId}
+                        REQ-ID {formatRequestId(row.id)}
                       </p>
                       <div>
                         <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -84,12 +85,12 @@ export function ExpertDraftsPageBody({ items }: ExpertDraftsPageBodyProps) {
                       </div>
                     </div>
                     <div className="flex shrink-0 sm:items-end sm:pt-8">
-                      <button
-                        type="button"
-                        className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 sm:w-auto"
+                      <Link
+                        href={`/expert/queue/${row.id}`}
+                        className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 sm:w-auto"
                       >
                         Continue
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </article>

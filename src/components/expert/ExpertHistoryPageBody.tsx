@@ -1,12 +1,11 @@
 import { CertReportModal } from "@/components/expert/CertReportModal";
+import { HISTORY_PAGE_SIZE } from "@/lib/expert/constants";
 import {
-  HISTORY_PAGE_SIZE,
   buildExpertHistoryHref,
   formatInr,
   type HistoryPeriodFilter,
-  type HistoryRow,
-  type HistorySummaryStats,
-} from "@/data/expert-panel.mock";
+} from "@/lib/expert/format";
+import type { HistoryRow, HistorySummaryStats } from "@/lib/expert/types";
 import Link from "next/link";
 
 type ExpertHistoryPageBodyProps = {
@@ -15,8 +14,8 @@ type ExpertHistoryPageBodyProps = {
   page: number;
   totalItems: number;
   period: HistoryPeriodFilter;
-  previewEmpty: boolean;
   activeReportId: string | null;
+  isLoading?: boolean;
 };
 
 export function ExpertHistoryPageBody({
@@ -25,10 +24,10 @@ export function ExpertHistoryPageBody({
   page,
   totalItems,
   period,
-  previewEmpty,
   activeReportId,
+  isLoading = false,
 }: ExpertHistoryPageBodyProps) {
-  const showEmpty = previewEmpty || totalItems === 0;
+  const showEmpty = !isLoading && totalItems === 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / HISTORY_PAGE_SIZE));
   const pageSize = HISTORY_PAGE_SIZE;
   const from = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -68,17 +67,24 @@ export function ExpertHistoryPageBody({
               Total earned
             </p>
             <p className="mt-2 text-3xl font-semibold tabular-nums text-text">
-              {formatInr(summary.totalEarnedInr)}
+              {summary.totalEarnedInr == null
+                ? "—"
+                : formatInr(summary.totalEarnedInr)}
             </p>
             <p className="mt-1 text-sm text-text-muted">
-              This month: {formatInr(summary.earnedThisMonthInr)}
+              This month:{" "}
+              {summary.earnedThisMonthInr == null
+                ? "—"
+                : formatInr(summary.earnedThisMonthInr)}
             </p>
           </div>
         </div>
       </header>
 
       <div className="mt-8">
-        {showEmpty ? (
+        {isLoading ? (
+          <p className="text-sm text-text-muted">Loading history…</p>
+        ) : showEmpty ? (
           <div className="flex justify-center px-2">
             <div className="w-full max-w-xl rounded-2xl border border-border/70 bg-surface px-8 py-16 text-center shadow-sm sm:px-12 sm:py-20">
               <p className="text-lg font-semibold text-text">Evaluation history</p>
@@ -142,7 +148,7 @@ export function ExpertHistoryPageBody({
                       className="border-b border-border/50 last:border-0"
                     >
                       <td className="whitespace-nowrap px-4 py-3 font-mono font-medium text-text sm:px-6">
-                        {row.requestId}
+                        {row.requestId.slice(-8).toUpperCase()}
                       </td>
                       <td className="max-w-[10rem] px-4 py-3 text-text sm:max-w-[11rem] sm:px-6">
                         <span className="block truncate" title={row.coinName}>
@@ -164,15 +170,10 @@ export function ExpertHistoryPageBody({
                       <td className="px-4 py-3 text-right sm:px-6">
                         <ActionButton
                           action={row.action}
-                          viewReportHref={
-                            row.action === "view_report"
-                              ? buildExpertHistoryHref({
-                                  page,
-                                  period,
-                                  report: row.requestId,
-                                })
-                              : undefined
-                          }
+                          requestId={row.requestId}
+                          reportId={row.reportId}
+                          page={page}
+                          period={period}
                         />
                       </td>
                     </tr>
@@ -207,6 +208,13 @@ export function ExpertHistoryPageBody({
 }
 
 function StatusPill({ status }: { status: HistoryRow["status"] }) {
+  if (status === "missed") {
+    return (
+      <span className="inline-flex rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-600/20">
+        Missed
+      </span>
+    );
+  }
   if (status === "draft") {
     return (
       <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700 ring-1 ring-stone-300/80">
@@ -230,35 +238,41 @@ function StatusPill({ status }: { status: HistoryRow["status"] }) {
 
 function ActionButton({
   action,
-  viewReportHref,
+  requestId,
+  reportId,
+  page,
+  period,
 }: {
   action: HistoryRow["action"];
-  viewReportHref?: string;
+  requestId: string;
+  reportId?: string;
+  page: number;
+  period: HistoryPeriodFilter;
 }) {
   if (action === "resume") {
     return (
-      <button
-        type="button"
-        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+      <Link
+        href={`/expert/queue/${requestId}`}
+        className="inline-flex rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
       >
         Resume
-      </button>
+      </Link>
     );
   }
   if (action === "evaluate") {
     return (
-      <button
-        type="button"
-        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover"
+      <Link
+        href={`/expert/queue/${requestId}`}
+        className="inline-flex rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover"
       >
         Evaluate
-      </button>
+      </Link>
     );
   }
-  if (viewReportHref) {
+  if (action === "view_report" && reportId) {
     return (
       <Link
-        href={viewReportHref}
+        href={buildExpertHistoryHref({ page, period, report: reportId })}
         scroll={false}
         className="inline-flex rounded-lg border border-primary bg-transparent px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/[0.06]"
       >
@@ -266,14 +280,7 @@ function ActionButton({
       </Link>
     );
   }
-  return (
-    <button
-      type="button"
-      className="rounded-lg border border-primary bg-transparent px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/[0.06]"
-    >
-      View report
-    </button>
-  );
+  return <span className="text-xs text-text-muted">—</span>;
 }
 
 function HistoryPagination({

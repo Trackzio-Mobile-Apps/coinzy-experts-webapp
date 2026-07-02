@@ -1,23 +1,17 @@
-import { ExpertPanelShell } from "@/components/expert/ExpertPanelShell";
-import { getExpertNavCounts, MOCK_EXPERT_USER } from "@/data/expert-panel.mock";
-import { hasExpertAccessSession } from "@/lib/expert-session";
-import { redirect } from "next/navigation";
+import { ExpertAuthGuard } from "@/components/expert/ExpertAuthGuard";
+import { ExpertPanelChrome } from "@/components/expert/ExpertPanelChrome";
+import { ExpertPanelProviders } from "@/components/expert/ExpertPanelProviders";
 
-export default async function ExpertPanelLayout({
+export default function ExpertPanelLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  if (!(await hasExpertAccessSession())) {
-    redirect("/expert/login");
-  }
-
   return (
-    <ExpertPanelShell
-      user={MOCK_EXPERT_USER}
-      navCounts={getExpertNavCounts()}
-    >
-      {children}
-    </ExpertPanelShell>
+    <ExpertPanelProviders>
+      <ExpertAuthGuard>
+        <ExpertPanelChrome>{children}</ExpertPanelChrome>
+      </ExpertAuthGuard>
+    </ExpertPanelProviders>
   );
 }

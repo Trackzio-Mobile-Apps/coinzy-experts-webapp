@@ -1,21 +1,22 @@
-import type { QueueItem } from "@/data/expert-panel.mock";
-import {
-  MOCK_QUEUE_PREVIEW_EMPTY,
-  QUEUE_PAGE_SIZE,
-} from "@/data/expert-panel.mock";
+import type { QueueListItem } from "@/lib/expert/types";
+import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
+import { formatRequestId } from "@/lib/expert/format";
 import Link from "next/link";
 
 type ExpertQueuePageBodyProps = {
-  items: QueueItem[];
+  items: QueueListItem[];
   page: number;
   totalItems: number;
+  isLoading?: boolean;
 };
 
-function CoinPair() {
+function CoinPair({ label }: { label: string }) {
   return (
-    <div className="flex shrink-0 -space-x-2" aria-hidden>
-      <div className="relative z-[1] h-14 w-14 rounded-full border-2 border-white bg-gradient-to-br from-amber-200 via-amber-500 to-amber-900 shadow-sm" />
-      <div className="relative z-[2] h-14 w-14 rounded-full border-2 border-white bg-gradient-to-br from-stone-200 via-stone-600 to-stone-900 shadow-sm" />
+    <div
+      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-amber-200 via-amber-500 to-amber-900 text-[10px] font-bold text-white shadow-sm"
+      aria-hidden
+    >
+      {label.slice(0, 2).toUpperCase()}
     </div>
   );
 }
@@ -24,8 +25,9 @@ export function ExpertQueuePageBody({
   items,
   page,
   totalItems,
+  isLoading = false,
 }: ExpertQueuePageBodyProps) {
-  const showEmpty = MOCK_QUEUE_PREVIEW_EMPTY || totalItems === 0;
+  const showEmpty = !isLoading && totalItems === 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / QUEUE_PAGE_SIZE));
   const from = totalItems === 0 ? 0 : (page - 1) * QUEUE_PAGE_SIZE + 1;
   const to = Math.min(page * QUEUE_PAGE_SIZE, totalItems);
@@ -37,25 +39,27 @@ export function ExpertQueuePageBody({
           Evaluation queue
         </h2>
         <p className="mt-1 text-sm text-text-muted">
-          All pending evaluation requests
+          New offers and active evaluations assigned to you
         </p>
       </div>
 
       <div className="rounded-2xl border border-border/70 bg-surface p-6 shadow-sm sm:p-8">
         <h3 className="text-sm font-semibold text-text">Priority queue</h3>
 
-        {showEmpty ? (
+        {isLoading ? (
+          <p className="mt-8 text-sm text-text-muted">Loading queue…</p>
+        ) : showEmpty ? (
           <div className="flex min-h-[280px] flex-col items-center justify-center px-4 py-16 text-center">
             <p className="text-lg font-semibold text-text">Your queue is empty</p>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-text-muted">
-              This page will show all your new and in progress requests
+              New evaluation offers will appear here when they are assigned to you.
             </p>
           </div>
         ) : (
           <>
             <ul className="mt-6 space-y-4">
               {items.map((row) => (
-                <li key={row.reqId}>
+                <li key={row.id}>
                   <article
                     className={`flex flex-col gap-4 rounded-xl border border-border/80 bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-6 ${
                       row.status === "in_progress"
@@ -64,13 +68,16 @@ export function ExpertQueuePageBody({
                     }`}
                   >
                     <div className="flex min-w-0 flex-1 gap-4">
-                      <CoinPair />
+                      <CoinPair label={row.coinName} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-text-muted">
+                        <p className="text-sm font-medium text-text">
+                          {row.coinName}
+                        </p>
+                        <p className="mt-1 text-sm text-text-muted">
                           {row.submittedDisplay}
                         </p>
                         <p className="mt-1 font-mono text-sm font-semibold text-text">
-                          REQ-ID {row.reqId}
+                          REQ-ID {formatRequestId(row.id)}
                         </p>
                         <div className="mt-2">
                           {row.status === "in_progress" ? (
@@ -79,7 +86,7 @@ export function ExpertQueuePageBody({
                             </span>
                           ) : (
                             <span className="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-700 ring-1 ring-stone-300/80">
-                              Pending review
+                              New offer
                             </span>
                           )}
                         </div>
@@ -96,14 +103,14 @@ export function ExpertQueuePageBody({
                       </p>
                       {row.status === "in_progress" ? (
                         <Link
-                          href={`/expert/queue/${row.reqId}`}
+                          href={`/expert/queue/${row.id}`}
                           className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                         >
                           Continue
                         </Link>
                       ) : (
                         <Link
-                          href={`/expert/queue/${row.reqId}`}
+                          href={`/expert/queue/${row.id}?offerId=${row.offerId ?? ""}`}
                           className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover"
                         >
                           View request

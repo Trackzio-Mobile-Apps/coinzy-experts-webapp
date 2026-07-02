@@ -1,14 +1,16 @@
-import type { ExpertDashboardStats } from "@/data/expert-panel.mock";
-import { formatInr } from "@/data/expert-panel.mock";
+import type { ExpertDashboardStats } from "@/lib/expert/types";
+import { formatInr } from "@/lib/expert/format";
 
 type ExpertDashboardHeaderProps = {
   greeting: string;
   stats: ExpertDashboardStats;
+  isLoading?: boolean;
 };
 
 export function ExpertDashboardHeader({
   greeting,
   stats,
+  isLoading = false,
 }: ExpertDashboardHeaderProps) {
   const s = stats;
 
@@ -29,16 +31,24 @@ export function ExpertDashboardHeader({
             Active tasks
           </p>
           <p className="mt-2 text-3xl font-semibold tabular-nums text-text">
-            {s.activeCases}
+            {isLoading ? "—" : s.activeCases}
           </p>
           <p className="mt-1 text-sm text-text-muted">Pending your review</p>
         </div>
-        <StatCard label="New requests" value={s.newRequests} hint="This month" />
-        <StatCard label="Completed" value={s.completed} hint="This month" />
         <StatCard
-          label="Total earnings"
-          value={formatInr(s.totalEarningsInr)}
-          hint="This month"
+          label="New offers"
+          value={isLoading ? "—" : s.newRequests}
+          hint="In your queue"
+        />
+        <StatCard
+          label="Completed"
+          value={isLoading ? "—" : s.completed}
+          hint="All time"
+        />
+        <StatCard
+          label="Avg turnaround"
+          value={isLoading ? "—" : (s.avgTurnaround ?? "—")}
+          hint="Last 5 evaluations"
         />
       </div>
     </header>
@@ -66,3 +76,6 @@ function StatCard({
     </div>
   );
 }
+
+// Keep formatInr exported for history/profile consumers
+export { formatInr };
