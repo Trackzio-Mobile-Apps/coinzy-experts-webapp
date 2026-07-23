@@ -123,11 +123,36 @@ export function evaluateFormProgress(form: EvaluationFormState): {
   };
 }
 
+export function getSectionProgress(
+  form: EvaluationFormState,
+  sectionId: string,
+): { filled: number; total: number } {
+  const sec = EVALUATION_FORM_SECTIONS.find((s) => s.id === sectionId);
+  if (!sec) return { filled: 0, total: 0 };
+
+  const total = sec.fields.length;
+  const filled = sec.fields.filter(
+    (field) => (form[field.key] ?? "").trim().length > 0,
+  ).length;
+
+  return { filled, total };
+}
+
+export type SectionStepState = "complete" | "in_progress" | "pending";
+
+export function getSectionStepState(
+  form: EvaluationFormState,
+  sectionId: string,
+): SectionStepState {
+  const { filled, total } = getSectionProgress(form, sectionId);
+  if (total === 0 || filled === 0) return "pending";
+  if (filled === total) return "complete";
+  return "in_progress";
+}
+
 export function isSectionComplete(
   form: EvaluationFormState,
   sectionId: string,
 ): boolean {
-  const sec = EVALUATION_FORM_SECTIONS.find((s) => s.id === sectionId);
-  if (!sec) return false;
-  return sec.fields.every((f) => (form[f.key] ?? "").trim().length > 0);
+  return getSectionStepState(form, sectionId) === "complete";
 }

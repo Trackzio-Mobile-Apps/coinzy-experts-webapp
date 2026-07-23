@@ -4,8 +4,10 @@ import { ExpertHistoryPageBody } from "@/components/expert/ExpertHistoryPageBody
 import { HISTORY_PAGE_SIZE } from "@/lib/expert/constants";
 import {
   formatAvgTurnaround,
+  normalizeMongoId,
   parseHistoryPeriod,
   parseHistoryReportParam,
+  parseHistoryReportRequestParam,
 } from "@/lib/expert/format";
 import {
   filterHistoryByPeriod,
@@ -20,23 +22,32 @@ import { useMemo } from "react";
 
 export function ExpertHistoryPageClient() {
   const searchParams = useSearchParams();
-  const { requests, isLoading, error } = useExpertPanelData();
+  const { requests, offers, isLoading, error } = useExpertPanelData();
   const { profile } = useExpertProfile();
 
   const period = parseHistoryPeriod(searchParams.get("period") ?? undefined);
   const activeReportId = parseHistoryReportParam(
     searchParams.get("report") ?? undefined,
   );
+  const activeReportRequestId = parseHistoryReportRequestParam(
+    searchParams.get("reportRequest") ?? undefined,
+  );
 
   const allRows = useMemo(
     () =>
-      requests.map((request) =>
-        mapRequestToHistoryRow(
-          request,
-          getStoredReportIdForRequest(request._id) ?? undefined,
-        ),
-      ),
-    [requests],
+      requests.map((request) => {
+        const requestId = normalizeMongoId(request._id);
+        const matchedOffer = offers.find(
+          (offer) => normalizeMongoId(offer.request._id) === requestId,
+        );
+        return mapRequestToHistoryRow(request, {
+          reportId: getStoredReportIdForRequest(requestId) ?? undefined,
+          offerId: matchedOffer
+            ? normalizeMongoId(matchedOffer._id)
+            : undefined,
+        });
+      }),
+    [requests, offers],
   );
 
   const filtered = useMemo(
@@ -58,12 +69,16 @@ export function ExpertHistoryPageClient() {
     const completed = requests.filter(
       (r) => r.status === "completed" || r.status === "report_submitted",
     ).length;
+    const totalEarnedInr =
+      profile?.stats.totalEarningsInr && profile.stats.totalEarningsInr > 0
+        ? profile.stats.totalEarningsInr
+        : null;
     return {
       totalCompleted: completed,
       avgTurnaround: formatAvgTurnaround(
         profile?.stats.avgCompletionHours ?? null,
       ),
-      totalEarnedInr: null,
+      totalEarnedInr,
       earnedThisMonthInr: null,
     };
   }, [requests, profile]);
@@ -80,8 +95,10 @@ export function ExpertHistoryPageClient() {
         items={slice}
         page={page}
         totalItems={totalItems}
+        allTimeCount={allRows.length}
         period={period}
         activeReportId={activeReportId}
+        activeReportRequestId={activeReportRequestId}
         isLoading={isLoading}
       />
     </>

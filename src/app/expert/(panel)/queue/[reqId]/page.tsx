@@ -1,4 +1,5 @@
 import { ExpertQueueRequestPageClient } from "@/components/expert/ExpertQueueRequestPageClient";
+import { ExpertRequestDetailSkeleton } from "@/components/expert/ExpertSkeleton";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
@@ -18,7 +19,7 @@ export default async function ExpertQueueRequestPage({ params }: PageProps) {
   const { reqId } = await params;
 
   return (
-    <Suspense fallback={<p className="text-sm text-text-muted">Loading…</p>}>
+    <Suspense fallback={<ExpertRequestDetailSkeleton />}>
       <ExpertQueueRequestPageClient requestId={reqId} />
     </Suspense>
   );

@@ -20,12 +20,9 @@ export function ExpertPanelChrome({ children }: ExpertPanelChromeProps) {
   const { profile } = useExpertProfile();
   const { navCounts } = useExpertPanelData();
 
-  if (!profile) return null;
-
-  return (
-    <ExpertPanelShell
-      expertId={profile.id}
-      user={{
+  // Always keep the sidebar chrome mounted — never blank the shell.
+  const user = profile
+    ? {
         firstName: profile.firstName,
         lastName: profile.lastName,
         initials: profileInitials(
@@ -33,9 +30,14 @@ export function ExpertPanelChrome({ children }: ExpertPanelChromeProps) {
           profile.lastName,
           profile.initials,
         ),
-      }}
+      }
+    : { firstName: "Expert", lastName: "", initials: "EX" };
+
+  return (
+    <ExpertPanelShell
+      user={user}
       navCounts={navCounts}
-      status={profile.status}
+      status={profile?.status}
     >
       {children}
     </ExpertPanelShell>

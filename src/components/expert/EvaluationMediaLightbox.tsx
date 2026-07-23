@@ -106,30 +106,23 @@ export function EvaluationMediaLightbox({
             style={{ transform: `scale(${zoom})` }}
           >
             {current.kind === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element -- external demo URLs
+              // eslint-disable-next-line @next/next/no-img-element -- remote media URLs
               <img
                 src={current.src}
                 alt={current.alt}
                 className="max-h-[min(70vh,720px)] max-w-[min(92vw,920px)] rounded-lg object-contain shadow-2xl"
               />
             ) : (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={current.poster}
-                  alt={current.alt}
-                  className="max-h-[min(70vh,720px)] max-w-[min(92vw,920px)] rounded-lg object-contain shadow-2xl"
-                />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 text-3xl text-white shadow-lg">
-                    ▶
-                  </span>
-                </div>
-                <p className="mt-3 max-w-lg text-center text-xs text-white/75">
-                  Demo: connect a video URL to enable playback. Poster is shown
-                  for review.
-                </p>
-              </div>
+              <video
+                key={current.src}
+                src={current.src}
+                poster={current.poster || undefined}
+                controls
+                playsInline
+                className="max-h-[min(70vh,720px)] max-w-[min(92vw,920px)] rounded-lg bg-black shadow-2xl"
+              >
+                {current.alt}
+              </video>
             )}
           </div>
         </div>
@@ -169,12 +162,18 @@ export function EvaluationMediaLightbox({
                 />
               ) : (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.poster}
-                    alt=""
-                    className="h-14 w-14 object-cover sm:h-16 sm:w-16"
-                  />
+                  {item.poster ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.poster}
+                      alt=""
+                      className="h-14 w-14 object-cover sm:h-16 sm:w-16"
+                    />
+                  ) : (
+                    <span className="flex h-14 w-14 items-center justify-center bg-black text-xs text-white sm:h-16 sm:w-16">
+                      ▶
+                    </span>
+                  )}
                   <span className="absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
                     ▶
                   </span>

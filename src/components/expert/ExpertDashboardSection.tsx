@@ -31,7 +31,7 @@ export function ExpertDashboardSection({ children }: ExpertDashboardSectionProps
         }}
         isLoading={panelLoading}
       />
-      <div className="pt-4">{children}</div>
+      <div>{children}</div>
     </>
   );
 }

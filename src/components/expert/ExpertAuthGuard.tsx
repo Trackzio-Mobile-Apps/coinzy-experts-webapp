@@ -1,5 +1,6 @@
 "use client";
 
+import { ExpertSessionSkeleton } from "@/components/expert/ExpertSkeleton";
 import { hasExpertSession } from "@/lib/expert/apiClient";
 import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import { useRouter } from "next/navigation";
@@ -22,16 +23,8 @@ export function ExpertAuthGuard({ children }: { children: ReactNode }) {
     })();
   }, [router]);
 
-  if (hasSession === null || !hasSession) {
-    return null;
-  }
-
-  if (!isInitialized || isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-expert-dashboard-canvas">
-        <p className="text-sm text-text-muted">Loading your session…</p>
-      </div>
-    );
+  if (hasSession === null || !hasSession || !isInitialized || isLoading) {
+    return <ExpertSessionSkeleton />;
   }
 
   return children;

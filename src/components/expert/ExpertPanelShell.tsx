@@ -1,11 +1,13 @@
 "use client";
 
+import { ExpertLogoutConfirmModal } from "@/components/expert/ExpertLogoutConfirmModal";
 import type { ExpertNavCounts, ExpertUserSummary } from "@/lib/expert/types";
 import { clearExpertSession } from "@/lib/expert/authService";
 import {
-  loadExtendedProfile,
-  saveExtendedProfile,
-} from "@/lib/expert/expertProfileExtended";
+  ExpertProfileError,
+  updateMyAvailability,
+} from "@/lib/expert/profileService";
+import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -39,7 +41,6 @@ const NAV = [
 ] as const;
 
 type ExpertPanelShellProps = {
-  expertId: string;
   user: ExpertUserSummary;
   navCounts: ExpertNavCounts;
   status?: string;
@@ -48,40 +49,18 @@ type ExpertPanelShellProps = {
 
 function SidebarLogo() {
   return (
-    <div className="flex items-center gap-3 px-1">
-      <span
-        className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#1c1917] shadow-sm"
-        aria-hidden
-      >
-        <svg
-          width="28"
-          height="28"
-          viewBox="0 0 28 28"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <circle cx="14" cy="14" r="9" fill="#d4a853" />
-          <circle cx="14" cy="14" r="7" stroke="#8b6914" strokeWidth="1" />
-          <path
-            d="M8 14h12"
-            stroke="#8b6914"
-            strokeWidth="0.75"
-            strokeDasharray="1.5 1.5"
-          />
-          <path
-            d="M5 9l18 10"
-            stroke="#4ade80"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded bg-orange-500 px-1 text-[7px] font-bold leading-none text-white">
-          AI
-        </span>
-      </span>
+    <div className="flex items-center gap-2.5 xl:gap-3">
+      {/* eslint-disable-next-line @next/next/no-img-element -- static brand asset from /public */}
+      <img
+        src="/coinzy-logo.png"
+        alt="Coinzy"
+        width={48}
+        height={48}
+        className="h-10 w-10 shrink-0 rounded-[10px] bg-black object-cover shadow-sm ring-1 ring-white/25 xl:h-12 xl:w-12 xl:rounded-xl"
+      />
       <div className="min-w-0 leading-tight">
-        <p className="text-lg font-semibold tracking-tight">Coinzy</p>
-        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-expert-sidebar-muted">
+        <p className="text-sm font-semibold tracking-tight xl:text-base">Coinzy</p>
+        <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-expert-sidebar-muted xl:text-[10px]">
           Expert panel
         </p>
       </div>
@@ -151,9 +130,11 @@ function MenuIcon() {
 
 function AvailabilityToggle({
   checked,
+  disabled,
   onChange,
 }: {
   checked: boolean;
+  disabled?: boolean;
   onChange: (next: boolean) => void;
 }) {
   return (
@@ -162,17 +143,18 @@ function AvailabilityToggle({
       role="switch"
       aria-checked={checked}
       aria-label="Availability"
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left transition-colors hover:bg-white/8"
+      className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/15 px-3 py-1.5 text-left transition-colors hover:bg-white/20 disabled:cursor-wait disabled:opacity-70 xl:py-2.5"
     >
       <span
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-          checked ? "bg-emerald-500" : "bg-white/20"
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          checked ? "bg-expert-available" : "bg-white/20"
         }`}
       >
         <span
-          className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0.5"
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-[1.125rem]" : "translate-x-0.5"
           }`}
         />
       </span>
@@ -184,11 +166,11 @@ function AvailabilityToggle({
 }
 
 type ExpertNavInnerProps = {
-  expertId: string;
   user: ExpertUserSummary;
   navCounts: ExpertNavCounts;
   status?: string;
   onNavigate?: () => void;
+  onRequestLogout: () => void;
 };
 
 function statusLabel(status?: string): string {
@@ -197,35 +179,54 @@ function statusLabel(status?: string): string {
 }
 
 function ExpertNavInner({
-  expertId,
   user,
   navCounts,
   status,
   onNavigate,
+  onRequestLogout,
 }: ExpertNavInnerProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [isAvailable, setIsAvailable] = useState(true);
+  const { profile, hydrateProfile } = useExpertProfile();
+  const [isAvailable, setIsAvailable] = useState(
+    profile?.isAvailableForRequests ?? true,
+  );
+  const [isSavingAvailability, setIsSavingAvailability] = useState(false);
 
   useEffect(() => {
-    const extended = loadExtendedProfile(expertId);
-    setIsAvailable(extended.isAvailable);
-  }, [expertId]);
+    if (profile?.isAvailableForRequests != null) {
+      setIsAvailable(profile.isAvailableForRequests);
+    }
+  }, [profile?.isAvailableForRequests]);
 
-  const handleAvailabilityChange = (next: boolean) => {
+  const handleAvailabilityChange = async (next: boolean) => {
+    if (isSavingAvailability) return;
+
+    const previous = isAvailable;
     setIsAvailable(next);
-    const extended = loadExtendedProfile(expertId);
-    saveExtendedProfile(expertId, { ...extended, isAvailable: next });
-  };
+    setIsSavingAvailability(true);
 
-  async function handleLogout() {
-    await clearExpertSession();
-    router.push("/expert/login");
-  }
+    try {
+      const updated = await updateMyAvailability(next);
+      hydrateProfile(updated);
+      setIsAvailable(updated.isAvailableForRequests);
+    } catch (err) {
+      setIsAvailable(previous);
+      if (err instanceof ExpertProfileError && err.code === "unauthorized") {
+        return;
+      }
+      window.alert(
+        err instanceof Error
+          ? err.message
+          : "Unable to update availability. Please try again.",
+      );
+    } finally {
+      setIsSavingAvailability(false);
+    }
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-8 lg:mb-10">
+      <div className="mb-6 xl:mb-8">
         <SidebarLogo />
       </div>
 
@@ -248,9 +249,9 @@ function ExpertNavInner({
               key={item.href}
               href={item.href}
               onClick={() => onNavigate?.()}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors xl:py-3 ${
                 active
-                  ? "bg-white/12 text-expert-sidebar-foreground"
+                  ? "bg-white/20 text-expert-sidebar-foreground shadow-sm"
                   : "text-expert-sidebar-muted hover:bg-white/6 hover:text-expert-sidebar-foreground"
               }`}
             >
@@ -259,7 +260,7 @@ function ExpertNavInner({
               </span>
               <span className="flex-1">{item.label}</span>
               {count != null && count > 0 ? (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1.5 text-[11px] font-bold text-white">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-expert-nav-badge px-1.5 text-[11px] font-bold text-white">
                   {count}
                 </span>
               ) : null}
@@ -268,19 +269,21 @@ function ExpertNavInner({
         })}
       </nav>
 
-      <div className="mt-auto space-y-4 border-t border-white/10 pt-6">
+      <div className="-mx-4 mt-auto space-y-2 border-t border-white/15 px-4 pt-3 lg:-mx-5 lg:px-5 xl:-mx-8 xl:space-y-3 xl:px-8 xl:pt-5">
         <div className="flex items-center gap-3 px-1">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-semibold">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold xl:h-12 xl:w-12 xl:text-sm">
             {user.initials}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">
+            <p className="truncate text-xs font-semibold">
               {user.firstName} {user.lastName}
             </p>
             <p className="mt-0.5 flex items-center gap-1.5 text-xs text-expert-sidebar-muted">
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  status === "active" ? "bg-emerald-400" : "bg-amber-400"
+                  status === "active"
+                    ? "bg-expert-status-active"
+                    : "bg-expert-status-inactive"
                 }`}
                 aria-hidden
               />
@@ -291,13 +294,16 @@ function ExpertNavInner({
 
         <AvailabilityToggle
           checked={isAvailable}
-          onChange={handleAvailabilityChange}
+          disabled={isSavingAvailability}
+          onChange={(next) => {
+            void handleAvailabilityChange(next);
+          }}
         />
 
         <button
           type="button"
-          onClick={handleLogout}
-          className="w-full rounded-xl border border-white/15 bg-black/15 px-3 py-2.5 text-sm font-medium text-expert-sidebar-foreground transition-colors hover:border-white/25 hover:bg-black/25"
+          onClick={onRequestLogout}
+          className="w-full rounded-lg border border-white/15 bg-black/20 px-3 py-1.5 text-sm font-medium text-expert-sidebar-foreground transition-colors hover:border-white/25 hover:bg-black/30 xl:py-2.5"
         >
           Log out
         </button>
@@ -307,17 +313,40 @@ function ExpertNavInner({
 }
 
 export function ExpertPanelShell({
-  expertId,
   user,
   navCounts,
   status,
   children,
 }: ExpertPanelShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const menuId = useId();
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  const openLogoutConfirm = useCallback(() => {
+    closeMenu();
+    setLogoutOpen(true);
+  }, [closeMenu]);
+
+  const closeLogoutConfirm = useCallback(() => {
+    if (isLoggingOut) return;
+    setLogoutOpen(false);
+  }, [isLoggingOut]);
+
+  const confirmLogout = useCallback(async () => {
+    setIsLoggingOut(true);
+    try {
+      await clearExpertSession();
+      router.push("/expert/login");
+    } finally {
+      setIsLoggingOut(false);
+      setLogoutOpen(false);
+    }
+  }, [router]);
 
   useEffect(() => {
     closeMenu();
@@ -341,16 +370,46 @@ export function ExpertPanelShell({
     return () => document.removeEventListener("keydown", onKey);
   }, [menuOpen, closeMenu]);
 
+  const isRequestDetail =
+    /^\/expert\/queue\/[^/]+\/?$/.test(pathname);
+
+  if (isRequestDetail) {
+    return (
+      <main className="h-screen overflow-y-auto bg-expert-dashboard-canvas px-4 py-5 sm:px-6 lg:overflow-hidden lg:px-10 lg:py-7">
+        {children}
+      </main>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-expert-dashboard-canvas">
+      <ExpertLogoutConfirmModal
+        open={logoutOpen}
+        isLoggingOut={isLoggingOut}
+        onCancel={closeLogoutConfirm}
+        onConfirm={() => {
+          void confirmLogout();
+        }}
+      />
+
       <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-expert-sidebar px-4 text-expert-sidebar-foreground shadow-sm lg:hidden">
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold tracking-tight">
-            Coinzy
-          </p>
-          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-expert-sidebar-muted">
-            Expert panel
-          </p>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element -- static brand asset from /public */}
+          <img
+            src="/coinzy-logo.png"
+            alt="Coinzy"
+            width={36}
+            height={36}
+            className="h-9 w-9 shrink-0 rounded-[10px] bg-black object-cover ring-1 ring-white/25"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold tracking-tight">
+              Coinzy
+            </p>
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-expert-sidebar-muted">
+              Expert panel
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -364,14 +423,14 @@ export function ExpertPanelShell({
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-start">
-        <aside className="hidden w-[17.5rem] shrink-0 flex-col border-white/10 bg-expert-sidebar text-expert-sidebar-foreground lg:sticky lg:top-0 lg:z-30 lg:flex lg:h-screen lg:max-h-screen lg:overflow-y-auto lg:border-r">
-          <div className="flex flex-1 flex-col px-4 pb-6 pt-8">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-stretch">
+        <aside className="hidden w-60 shrink-0 flex-col border-white/10 bg-expert-sidebar text-expert-sidebar-foreground lg:sticky lg:top-0 lg:z-30 lg:flex lg:h-screen lg:max-h-screen lg:overflow-y-auto lg:border-r">
+          <div className="flex flex-1 flex-col px-5 pb-4 pt-6 xl:px-6 xl:pb-5 xl:pt-8">
             <ExpertNavInner
-              expertId={expertId}
               user={user}
               navCounts={navCounts}
               status={status}
+              onRequestLogout={openLogoutConfirm}
             />
           </div>
         </aside>
@@ -386,7 +445,7 @@ export function ExpertPanelShell({
             />
             <aside
               id={menuId}
-              className="fixed inset-y-0 left-0 z-50 flex w-[min(100%,20rem)] flex-col border-r border-white/10 bg-expert-sidebar text-expert-sidebar-foreground shadow-2xl lg:hidden"
+              className="fixed inset-y-0 left-0 z-50 flex w-[min(100%,15rem)] flex-col border-r border-white/10 bg-expert-sidebar text-expert-sidebar-foreground shadow-2xl lg:hidden"
             >
               <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4">
                 <span className="text-sm font-semibold tracking-tight">
@@ -403,19 +462,19 @@ export function ExpertPanelShell({
               </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-6 pt-4">
                 <ExpertNavInner
-                  expertId={expertId}
                   user={user}
                   navCounts={navCounts}
                   status={status}
                   onNavigate={closeMenu}
+                  onRequestLogout={openLogoutConfirm}
                 />
               </div>
             </aside>
           </>
         ) : null}
 
-        <div className="min-h-0 min-w-0 flex-1 flex-col lg:flex lg:min-h-screen lg:flex-1">
-          <div className="flex-1 px-4 pb-10 pt-5 sm:px-6 lg:px-10 lg:pt-6">
+        <div className="min-h-0 min-w-0 flex-1 lg:min-h-screen">
+          <div className="w-full px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8 xl:px-10">
             {children}
           </div>
         </div>

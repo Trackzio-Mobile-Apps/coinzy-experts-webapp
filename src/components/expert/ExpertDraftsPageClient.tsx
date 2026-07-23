@@ -1,6 +1,5 @@
 "use client";
 
-import { ExpertDashboardSection } from "@/components/expert/ExpertDashboardSection";
 import { ExpertDraftsPageBody } from "@/components/expert/ExpertDraftsPageBody";
 import { evaluateFormProgress } from "@/lib/expert/evaluationForm";
 import { loadEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
@@ -22,13 +21,13 @@ export function ExpertDraftsPageClient() {
   );
 
   return (
-    <ExpertDashboardSection>
+    <>
       {error ? (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
           {error}
         </p>
       ) : null}
       <ExpertDraftsPageBody items={items} isLoading={isLoading} />
-    </ExpertDashboardSection>
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/expert/apiClient";
+import { normalizeMongoId } from "@/lib/expert/format";
 import type {
   BackendReport,
   BackendRequest,
@@ -23,9 +24,12 @@ export function rememberReportForRequest(
 ): void {
   if (typeof window === "undefined") return;
   try {
+    const normalizedRequestId = normalizeMongoId(requestId);
+    const normalizedReportId = normalizeMongoId(reportId);
+    if (!normalizedRequestId || !normalizedReportId) return;
     const raw = sessionStorage.getItem(REPORT_BY_REQUEST_KEY);
     const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    map[requestId] = reportId;
+    map[normalizedRequestId] = normalizedReportId;
     sessionStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
   } catch {
     // ignore storage errors
@@ -37,10 +41,11 @@ export function getStoredReportIdForRequest(
 ): string | null {
   if (typeof window === "undefined") return null;
   try {
+    const normalizedRequestId = normalizeMongoId(requestId);
     const raw = sessionStorage.getItem(REPORT_BY_REQUEST_KEY);
     if (!raw) return null;
     const map = JSON.parse(raw) as Record<string, string>;
-    return map[requestId] ?? null;
+    return map[normalizedRequestId] ?? null;
   } catch {
     return null;
   }
@@ -51,10 +56,38 @@ type SubmitReportApiData = {
   request: BackendRequest;
 };
 
-export async function submitReport(requestId: string, content: unknown) {
+type SubmitReportOptions = {
+  coinTitle: string;
+  content: unknown;
+  attachments?: unknown[];
+};
+
+/**
+ * Submit evaluation report via `POST /experts/reports`.
+ * `coinTitle` is required by the live API.
+ */
+export async function submitReport(
+  requestId: string,
+  options: SubmitReportOptions,
+) {
+  const normalizedRequestId = normalizeMongoId(requestId);
+  if (!normalizedRequestId) {
+    throw new ExpertReportsError("Invalid request id.", 400);
+  }
+
+  const coinTitle = options.coinTitle.trim();
+  if (!coinTitle) {
+    throw new ExpertReportsError("Coin title is required.", 400);
+  }
+
   const { status, envelope } = await apiClient.post<SubmitReportApiData>(
-    "/reports",
-    { requestId, content, attachments: [] },
+    "/experts/reports",
+    {
+      requestId: normalizedRequestId,
+      coinTitle,
+      content: options.content,
+      attachments: options.attachments ?? [],
+    },
     { skipAuthHandling: true },
   );
 
@@ -65,13 +98,21 @@ export async function submitReport(requestId: string, content: unknown) {
     );
   }
 
-  rememberReportForRequest(requestId, envelope.data.report._id);
+  rememberReportForRequest(
+    normalizedRequestId,
+    normalizeMongoId(envelope.data.report._id),
+  );
   return envelope.data;
 }
 
 export async function getReport(reportId: string) {
+  const normalizedReportId = normalizeMongoId(reportId);
+  if (!normalizedReportId) {
+    throw new ExpertReportsError("Invalid report id.", 400);
+  }
+
   const { status, envelope } = await apiClient.get<ExpertReportApiData>(
-    `/reports/${reportId}`,
+    `/experts/reports/${encodeURIComponent(normalizedReportId)}`,
     { skipAuthHandling: true },
   );
 
@@ -83,4 +124,30 @@ export async function getReport(reportId: string) {
   }
 
   return envelope.data.report;
+}
+
+export async function getReportByRequestId(requestId: string) {
+  const normalizedRequestId = normalizeMongoId(requestId);
+  if (!normalizedRequestId) {
+    throw new ExpertReportsError("Invalid request id.", 400);
+  }
+
+  const storedReportId = getStoredReportIdForRequest(normalizedRequestId);
+  if (storedReportId) {
+    return getReport(storedReportId);
+  }
+
+  throw new ExpertReportsError(
+    "Report not found for this request. Open it from History after submit.",
+    404,
+  );
+}
+
+export async function resolveReport(
+  reportId?: string | null,
+  requestId?: string | null,
+) {
+  if (reportId) return getReport(reportId);
+  if (requestId) return getReportByRequestId(requestId);
+  throw new ExpertReportsError("Report reference is missing.", 400);
 }

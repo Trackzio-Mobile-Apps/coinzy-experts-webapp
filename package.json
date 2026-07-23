@@ -2,11 +2,16 @@
   "name": "coinzy-webapp",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:expert-panel": "node scripts/seed-expert-panel-live.mjs",
+    "generate:mobile-jwt": "node scripts/generate-mobile-user-jwt.mjs"
   },
   "dependencies": {
     "next": "16.2.6",

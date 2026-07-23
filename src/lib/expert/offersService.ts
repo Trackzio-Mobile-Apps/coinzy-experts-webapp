@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/expert/apiClient";
+import { normalizeMongoId } from "@/lib/expert/format";
 import type { BackendOffer, BackendRequest } from "@/lib/expert/types";
 
 type AcceptOfferApiData = {
@@ -17,8 +18,13 @@ export class ExpertOffersError extends Error {
 }
 
 export async function acceptOffer(offerId: string) {
+  const normalizedId = normalizeMongoId(offerId);
+  if (!normalizedId) {
+    throw new ExpertOffersError("Invalid offer id.", 400);
+  }
+
   const { status, envelope } = await apiClient.post<AcceptOfferApiData>(
-    `/experts/offers/${offerId}/accept`,
+    `/experts/offers/${encodeURIComponent(normalizedId)}/accept`,
     undefined,
     { skipAuthHandling: true },
   );
@@ -34,8 +40,13 @@ export async function acceptOffer(offerId: string) {
 }
 
 export async function skipOffer(offerId: string) {
+  const normalizedId = normalizeMongoId(offerId);
+  if (!normalizedId) {
+    throw new ExpertOffersError("Invalid offer id.", 400);
+  }
+
   const { status, envelope } = await apiClient.post<{ offer: BackendOffer }>(
-    `/experts/offers/${offerId}/skip`,
+    `/experts/offers/${encodeURIComponent(normalizedId)}/skip`,
     undefined,
     { skipAuthHandling: true },
   );

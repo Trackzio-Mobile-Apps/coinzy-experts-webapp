@@ -1,6 +1,7 @@
 "use client";
 
 import { evaluateFormProgress } from "@/lib/expert/evaluationForm";
+import { normalizeMongoId } from "@/lib/expert/format";
 import {
   buildQueueList,
   mapRequestToDraftItem,
@@ -57,6 +58,9 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
         getExpertRequests(),
         getAcceptedRequests(),
       ]);
+      console.log("[expert] GET /experts/me/offers", nextOffers);
+      console.log("[expert] GET /experts/me/requests", nextRequests);
+      console.log("[expert] GET /experts/me/requests?status=accepted", nextAccepted);
       setOffers(nextOffers);
       setRequests(nextRequests);
       setAcceptedRequests(nextAccepted);
@@ -76,7 +80,8 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
   const navCounts = useMemo<ExpertNavCounts>(() => {
     const queue = buildQueueList(offers, acceptedRequests).length;
     const drafts = acceptedRequests.map((request) => {
-      const draft = loadEvaluationDraft(request._id);
+      const requestId = normalizeMongoId(request._id);
+      const draft = loadEvaluationDraft(requestId);
       const progress = draft
         ? evaluateFormProgress(draft).percent
         : 0;

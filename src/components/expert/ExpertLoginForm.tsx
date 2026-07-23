@@ -1,6 +1,6 @@
 "use client";
 
-import { InputGroup, PasswordInputGroup, PrimaryButton, TextLink } from "@/components/auth";
+import { InputGroup, PasswordInputGroup, PrimaryButton } from "@/components/auth";
 import {
   clearExpertAccountDisabled,
   isExpertAccountDisabled,
@@ -43,6 +43,7 @@ export function ExpertLoginForm() {
 
     try {
       await login(email, password);
+      window.sessionStorage.setItem("coinzy_expert_login_success", "1");
       router.replace("/expert/queue");
     } catch (err) {
       if (err instanceof ExpertLoginError) {
@@ -79,7 +80,7 @@ export function ExpertLoginForm() {
         name="email"
         type="email"
         autoComplete="username"
-        placeholder="test.expert@coinzy.local"
+        placeholder="you@example.com"
         required
       />
       <PasswordInputGroup

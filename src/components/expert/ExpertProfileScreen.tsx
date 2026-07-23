@@ -1,5 +1,8 @@
 "use client";
 
+import { ExpertEmptyState } from "@/components/expert/ExpertEmptyState";
+import { ExpertProfileSkeleton } from "@/components/expert/ExpertSkeleton";
+import { ExpertToast } from "@/components/expert/ExpertToast";
 import { InputGroup } from "@/components/auth/InputGroup";
 import { SelectGroup } from "@/components/auth/SelectGroup";
 import {
@@ -10,12 +13,12 @@ import {
 } from "@/lib/expert/countriesService";
 import { formatInr } from "@/lib/expert/format";
 import {
-  DEMO_REVIEWS,
   EXPERTISE_OPTIONS,
   getReviewSummary,
   loadExtendedProfile,
   saveExtendedProfile,
   type ExpertExtendedProfile,
+  type ExpertReview,
 } from "@/lib/expert/expertProfileExtended";
 import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -127,22 +130,41 @@ function TagPill({
   onClick?: () => void;
 }) {
   const base =
-    "rounded-full px-3 py-1 text-xs font-medium transition-colors";
-  const styles = onClick
-    ? selected
-      ? `${base} bg-primary text-white`
-      : `${base} border border-border bg-surface text-text-muted hover:border-primary/40`
-    : `${base} bg-input-bg text-text-muted`;
+    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors";
+  const selectedStyles = `${base} border border-primary bg-primary text-white shadow-sm`;
+  const unselectedStyles = onClick
+    ? `${base} border border-border bg-surface text-text-muted hover:border-primary/40 hover:text-text`
+    : `${base} border border-border bg-surface text-text-muted`;
+
+  const content = (
+    <>
+      {selected ? (
+        <span aria-hidden className="text-[10px] leading-none">
+          ✓
+        </span>
+      ) : null}
+      {label}
+    </>
+  );
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={styles}>
-        {label}
+      <button
+        type="button"
+        onClick={onClick}
+        className={selected ? `${selectedStyles} ring-2 ring-primary/25` : unselectedStyles}
+        aria-pressed={selected}
+      >
+        {content}
       </button>
     );
   }
 
-  return <span className={styles}>{label}</span>;
+  return (
+    <span className={selected ? selectedStyles : unselectedStyles}>
+      {content}
+    </span>
+  );
 }
 
 function buildFormState(
@@ -162,6 +184,25 @@ function buildFormState(
   };
 }
 
+function sortedCopy(values: string[]): string[] {
+  return [...values].map((value) => value.trim()).sort();
+}
+
+function isSameForm(a: ProfileFormState, b: ProfileFormState): boolean {
+  return (
+    a.firstName.trim() === b.firstName.trim() &&
+    a.lastName.trim() === b.lastName.trim() &&
+    a.age.trim() === b.age.trim() &&
+    a.country.trim() === b.country.trim() &&
+    a.tagline.trim() === b.tagline.trim() &&
+    a.professionalBio.trim() === b.professionalBio.trim() &&
+    JSON.stringify(sortedCopy(a.summaryTags)) ===
+      JSON.stringify(sortedCopy(b.summaryTags)) &&
+    JSON.stringify(sortedCopy(a.expertiseCategories)) ===
+      JSON.stringify(sortedCopy(b.expertiseCategories))
+  );
+}
+
 export function ExpertProfileScreen() {
   const { profile, isLoading, hydrateProfile } = useExpertProfile();
   const [extended, setExtended] = useState<ExpertExtendedProfile | null>(null);
@@ -169,7 +210,12 @@ export function ExpertProfileScreen() {
   const [countriesError, setCountriesError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState<ProfileFormState | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [baselineForm, setBaselineForm] = useState<ProfileFormState | null>(
+    null,
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
+  const [showErrorToast, setShowErrorToast] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,11 +244,28 @@ export function ExpertProfileScreen() {
   useEffect(() => {
     if (!profile) return;
     const loaded = loadExtendedProfile(profile.id);
+    console.log("[expert] loaded extended profile from storage", {
+      expertId: profile.id,
+      expertiseCategories: loaded.expertiseCategories,
+      extended: loaded,
+    });
     setExtended(loaded);
-    setForm(buildFormState(profile, loaded, countries));
-  }, [profile, countries]);
+  }, [profile?.id]);
 
-  const reviewSummary = useMemo(() => getReviewSummary(DEMO_REVIEWS), []);
+  useEffect(() => {
+    if (!profile || !extended || isEditing) return;
+    const nextForm = buildFormState(profile, extended, countries);
+    console.log("[expert] built profile form", {
+      expertiseCategories: nextForm.expertiseCategories,
+      country: nextForm.country,
+      form: nextForm,
+    });
+    setForm(nextForm);
+  }, [profile, extended, countries, isEditing]);
+
+  // Reviews API is not integrated yet — show empty state until it is.
+  const reviews: ExpertReview[] = [];
+  const reviewSummary = getReviewSummary(reviews);
 
   const earnings = useMemo(() => {
     if (!profile || !extended) {
@@ -211,7 +274,7 @@ export function ExpertProfileScreen() {
         pending: "—",
         thisMonth: "—",
         completedThisMonth: "—",
-        memberSince: "Since Jan 2026",
+        memberSince: "",
         pendingHint: "—",
       };
     }
@@ -242,59 +305,92 @@ export function ExpertProfileScreen() {
 
   const handleStartEdit = useCallback(() => {
     if (!profile || !extended) return;
-    setForm(buildFormState(profile, extended, countries));
+    const nextForm = buildFormState(profile, extended, countries);
+    setForm(nextForm);
+    setBaselineForm(nextForm);
     setIsEditing(true);
-    setSaveMessage(null);
+    setShowErrorToast(false);
   }, [profile, extended, countries]);
 
   const handleCancelEdit = useCallback(() => {
     if (!profile || !extended) return;
-    setForm(buildFormState(profile, extended, countries));
+    const nextForm = buildFormState(profile, extended, countries);
+    setForm(nextForm);
+    setBaselineForm(null);
     setIsEditing(false);
-    setSaveMessage(null);
+    setShowErrorToast(false);
   }, [profile, extended, countries]);
 
   const handleSave = useCallback(() => {
-    if (!profile || !extended || !form) return;
+    if (!profile || !extended || !form || !baselineForm) return;
+    if (isSameForm(form, baselineForm) || isSaving) return;
 
-    const nextExtended: ExpertExtendedProfile = {
-      ...extended,
-      age: form.age.trim(),
-      country: form.country.trim(),
-      tagline: form.tagline.trim(),
-      professionalBio: form.professionalBio.trim(),
-      summaryTags: form.summaryTags,
-      expertiseCategories: form.expertiseCategories,
-    };
+    setIsSaving(true);
+    setShowErrorToast(false);
 
-    saveExtendedProfile(profile.id, nextExtended);
-    setExtended(nextExtended);
+    try {
+      const nextExtended: ExpertExtendedProfile = {
+        ...extended,
+        age: form.age.trim(),
+        country: form.country.trim(),
+        tagline: form.tagline.trim(),
+        professionalBio: form.professionalBio.trim(),
+        summaryTags: form.summaryTags,
+        expertiseCategories: form.expertiseCategories,
+      };
 
-    hydrateProfile({
-      ...profile,
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-    });
+      saveExtendedProfile(profile.id, nextExtended);
+      setExtended(nextExtended);
+      console.log("[expert] saved extended profile", {
+        expertId: profile.id,
+        expertiseCategories: nextExtended.expertiseCategories,
+        extended: nextExtended,
+      });
 
-    setIsEditing(false);
-    setSaveMessage("Profile updated.");
-  }, [profile, extended, form, hydrateProfile]);
+      hydrateProfile({
+        ...profile,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+      });
+
+      setBaselineForm(null);
+      setIsEditing(false);
+      setShowUpdateToast(true);
+    } catch (err) {
+      console.error("[expert] profile update failed", err);
+      setShowErrorToast(true);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [profile, extended, form, baselineForm, isSaving, hydrateProfile]);
+
+  const isDirty =
+    isEditing && form && baselineForm
+      ? !isSameForm(form, baselineForm)
+      : false;
+  const canSave = isDirty && !isSaving;
 
   const toggleExpertise = (tag: string) => {
     setForm((prev) => {
       if (!prev) return prev;
       const has = prev.expertiseCategories.includes(tag);
+      const expertiseCategories = has
+        ? prev.expertiseCategories.filter((item) => item !== tag)
+        : [...prev.expertiseCategories, tag];
+      console.log("[expert] toggled expertise category", {
+        tag,
+        selected: !has,
+        expertiseCategories,
+      });
       return {
         ...prev,
-        expertiseCategories: has
-          ? prev.expertiseCategories.filter((item) => item !== tag)
-          : [...prev.expertiseCategories, tag],
+        expertiseCategories,
       };
     });
   };
 
   if (isLoading || !profile || !extended || !form) {
-    return <p className="text-sm text-text-muted">Loading profile…</p>;
+    return <ExpertProfileSkeleton />;
   }
 
   const fullName = [form.firstName, form.lastName].filter(Boolean).join(" ");
@@ -314,26 +410,23 @@ export function ExpertProfileScreen() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {saveMessage && !isEditing ? (
-            <p className="text-sm text-emerald-700" role="status">
-              {saveMessage}
-            </p>
-          ) : null}
           {isEditing ? (
             <>
               <button
                 type="button"
                 onClick={handleCancelEdit}
-                className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-input-bg"
+                disabled={isSaving}
+                className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-input-bg disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSave}
-                className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+                disabled={!canSave}
+                className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-border disabled:text-text-muted"
               >
-                Save changes
+                {isSaving ? "Saving…" : "Save"}
               </button>
             </>
           ) : (
@@ -572,59 +665,82 @@ export function ExpertProfileScreen() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border/70 bg-surface p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col gap-2 border-b border-border/60 pb-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-text">
-              Feedback &amp; reviews
-            </h2>
-            <p className="mt-1 text-sm text-text-muted">
-              What coin owners are saying about your evaluations
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-semibold text-text">
-              {reviewSummary.average}
-            </span>
-            <StarRating rating={Math.round(reviewSummary.average)} />
-            <span className="text-sm text-text-muted">
-              {reviewSummary.count} reviews
-            </span>
-          </div>
-        </div>
-
-        <ul className="mt-6 divide-y divide-border/60">
-          {DEMO_REVIEWS.map((review) => (
-            <li key={review.id} className="py-5 first:pt-0 last:pb-0">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-text">
-                    {review.reviewerName}
-                    <span className="font-normal text-text-muted">
-                      {" "}
-                      · {review.dateLabel}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    {review.requestId} · {review.coinName}
-                  </p>
-                </div>
-                <StarRating rating={review.rating} />
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                {review.comment}
+      {reviews.length === 0 ? (
+        <section className="rounded-2xl border border-border/70 bg-surface shadow-sm">
+          <ExpertEmptyState
+            title="No Reviews Yet"
+            description="Reviews from your completed evaluations will appear here."
+          />
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-border/70 bg-surface p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col gap-2 border-b border-border/60 pb-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-text">
+                Feedback &amp; reviews
+              </h2>
+              <p className="mt-1 text-sm text-text-muted">
+                What coin owners are saying about your evaluations
               </p>
-            </li>
-          ))}
-        </ul>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold text-text">
+                {reviewSummary.average}
+              </span>
+              <StarRating rating={Math.round(reviewSummary.average)} />
+              <span className="text-sm text-text-muted">
+                {reviewSummary.count} reviews
+              </span>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          className="mt-6 text-sm font-semibold text-primary transition-colors hover:text-primary-hover"
-        >
-          View all reviews →
-        </button>
-      </section>
+          <ul className="mt-6 divide-y divide-border/60">
+            {reviews.map((review) => (
+              <li key={review.id} className="py-5 first:pt-0 last:pb-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text">
+                      {review.reviewerName}
+                      <span className="font-normal text-text-muted">
+                        {" "}
+                        · {review.dateLabel}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      {review.requestId} · {review.coinName}
+                    </p>
+                  </div>
+                  <StarRating rating={review.rating} />
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-text-muted">
+                  {review.comment}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            type="button"
+            className="mt-6 text-sm font-semibold text-primary transition-colors hover:text-primary-hover"
+          >
+            View all reviews →
+          </button>
+        </section>
+      )}
+
+      <ExpertToast
+        open={showUpdateToast}
+        message="Profile updated successfully"
+        onClose={() => setShowUpdateToast(false)}
+      />
+      <ExpertToast
+        open={showErrorToast}
+        variant="error"
+        title="Profile update failed"
+        message="Something went wrong. Your profile couldn't be updated. Please try again."
+        onClose={() => setShowErrorToast(false)}
+        durationMs={5200}
+      />
     </div>
   );
 }

@@ -14,7 +14,6 @@ export type ExpertExtendedProfile = {
   professionalBio: string;
   summaryTags: string[];
   expertiseCategories: string[];
-  isAvailable: boolean;
   earnings: ExpertEarningsSummary;
 };
 
@@ -41,21 +40,19 @@ export const EXPERTISE_OPTIONS = [
 
 function defaultExtendedProfile(): ExpertExtendedProfile {
   return {
-    tagline:
-      "Specializing in British India and ancient Indian coinages with 12+ years of Numismatic experience.",
+    tagline: "",
     age: "",
     country: "",
     professionalBio: "",
-    summaryTags: ["Ancient Coins", "British India", "Mughal Empire"],
-    expertiseCategories: [...EXPERTISE_OPTIONS],
-    isAvailable: true,
+    summaryTags: [],
+    expertiseCategories: [],
     earnings: {
       totalInr: 0,
       pendingInr: 0,
       pendingReviewCount: 0,
       thisMonthInr: 0,
       thisMonthCompleted: 0,
-      memberSinceLabel: "Since Jan 2026",
+      memberSinceLabel: "",
     },
   };
 }
@@ -67,11 +64,18 @@ export function loadExtendedProfile(expertId: string): ExpertExtendedProfile {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${expertId}`);
     if (!raw) return defaultExtendedProfile();
     const parsed = JSON.parse(raw) as Partial<ExpertExtendedProfile>;
+    const defaults = defaultExtendedProfile();
     return {
-      ...defaultExtendedProfile(),
+      ...defaults,
       ...parsed,
+      summaryTags: Array.isArray(parsed.summaryTags)
+        ? parsed.summaryTags
+        : defaults.summaryTags,
+      expertiseCategories: Array.isArray(parsed.expertiseCategories)
+        ? parsed.expertiseCategories
+        : defaults.expertiseCategories,
       earnings: {
-        ...defaultExtendedProfile().earnings,
+        ...defaults.earnings,
         ...parsed.earnings,
       },
     };
@@ -87,59 +91,6 @@ export function saveExtendedProfile(
   if (typeof window === "undefined") return;
   localStorage.setItem(`${STORAGE_PREFIX}${expertId}`, JSON.stringify(profile));
 }
-
-export const DEMO_REVIEWS: ExpertReview[] = [
-  {
-    id: "1",
-    reviewerName: "Rajesh M.",
-    dateLabel: "Apr 18, 2026",
-    requestId: "REQ-00814",
-    coinName: "Roman Denarius Vespasian",
-    rating: 5,
-    comment:
-      "Incredibly detailed report. The provenance section was especially helpful for my insurance claim.",
-  },
-  {
-    id: "2",
-    reviewerName: "Priya S.",
-    dateLabel: "Apr 12, 2026",
-    requestId: "REQ-00791",
-    coinName: "Mughal Silver Rupee",
-    rating: 5,
-    comment:
-      "Fast turnaround and very thorough. Identified a subtle die variety I had missed entirely.",
-  },
-  {
-    id: "3",
-    reviewerName: "David L.",
-    dateLabel: "Apr 5, 2026",
-    requestId: "REQ-00762",
-    coinName: "East India Company 1/4 Anna",
-    rating: 5,
-    comment:
-      "Professional and knowledgeable. The valuation range was well justified with comparables.",
-  },
-  {
-    id: "4",
-    reviewerName: "Ananya R.",
-    dateLabel: "Mar 28, 2026",
-    requestId: "REQ-00740",
-    coinName: "Gupta Gold Dinar",
-    rating: 4,
-    comment:
-      "Excellent authentication work. Would have loved a bit more detail on the mint location.",
-  },
-  {
-    id: "5",
-    reviewerName: "Michael T.",
-    dateLabel: "Mar 20, 2026",
-    requestId: "REQ-00718",
-    coinName: "Victoria Empress Rupee",
-    rating: 5,
-    comment:
-      "Clear, honest assessment. Saved me from a costly purchase of a cleaned coin.",
-  },
-];
 
 export function getReviewSummary(reviews: ExpertReview[]) {
   if (reviews.length === 0) {

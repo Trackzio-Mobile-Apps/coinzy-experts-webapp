@@ -6,20 +6,14 @@ type LogoProps = {
 
 function Mark() {
   return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-    >
-      <rect width="24" height="24" rx="5" fill="var(--coinzy-logo-bg)" />
-      <path
-        d="M7 17V7h2.6c2.2 0 3.6 1.3 3.6 3.2 0 1.9-1.4 3.2-3.6 3.2H9.8V17H7Zm2.6-5.6c.9 0 1.4-.5 1.4-1.3 0-.8-.5-1.3-1.4-1.3H9.8v2.6h.05Z"
-        fill="var(--coinzy-logo-accent)"
-      />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element -- static brand asset from /public
+    <img
+      src="/coinzy-logo.png"
+      alt="Coinzy"
+      width={40}
+      height={40}
+      className="h-10 w-10 rounded-lg bg-black object-cover shadow-sm ring-1 ring-black/10"
+    />
   );
 }
 

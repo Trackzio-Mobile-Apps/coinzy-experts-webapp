@@ -13,6 +13,12 @@ async function proxyRequest(
   request: NextRequest,
   pathSegments: string[],
 ): Promise<NextResponse> {
+  const method = request.method;
+  const path = pathSegments.join("/");
+  const token = request.cookies.get(EXPERT_JWT_COOKIE)?.value;
+  const bodyText =
+    method === "GET" || method === "HEAD" ? undefined : await request.text();
+
   const target = new URL(`/${pathSegments.join("/")}`, getBackendBaseUrl());
   target.search = request.nextUrl.search;
 
@@ -21,10 +27,8 @@ async function proxyRequest(
   if (authorization) {
     headers.set("authorization", authorization);
   } else {
-    const path = pathSegments.join("/");
     const isPublicAuthRoute = path === "experts/login";
     if (!isPublicAuthRoute) {
-      const token = request.cookies.get(EXPERT_JWT_COOKIE)?.value;
       if (token) {
         headers.set("authorization", `Bearer ${token}`);
       }
@@ -36,9 +40,8 @@ async function proxyRequest(
     headers.set("content-type", contentType);
   }
 
-  const method = request.method;
   const body =
-    method === "GET" || method === "HEAD" ? undefined : await request.text();
+    method === "GET" || method === "HEAD" ? undefined : bodyText;
 
   let backendResponse: Response;
 
@@ -53,7 +56,8 @@ async function proxyRequest(
     return NextResponse.json(
       {
         error: true,
-        message: "Unable to reach the expert API. Is the backend running?",
+        message:
+          "Unable to reach the expert API. Check EXPERT_API_BASE_URL and backend availability.",
         data: null,
       },
       { status: 502 },

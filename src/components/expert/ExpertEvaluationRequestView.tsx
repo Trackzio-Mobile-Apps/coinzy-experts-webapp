@@ -5,16 +5,17 @@ import {
   createInitialEvaluationFormState,
   evaluateFormProgress,
   EVALUATION_FORM_SECTIONS,
-  isSectionComplete,
+  getSectionStepState,
+  type SectionStepState,
 } from "@/lib/expert/evaluationForm";
 import {
   clearEvaluationDraft,
   loadEvaluationDraft,
   saveEvaluationDraft,
 } from "@/lib/expert/evaluationDraftStorage";
-import { formatRequestId } from "@/lib/expert/format";
+import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn } from "@/lib/expert/format";
 import { submitReport } from "@/lib/expert/reportsService";
-import type { EvaluationRequestDetail } from "@/lib/expert/types";
+import type { EvaluationRequestDetail, RequestMediaItem } from "@/lib/expert/types";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -22,6 +23,14 @@ import { EvaluationMediaLightbox } from "./EvaluationMediaLightbox";
 
 type ExpertEvaluationRequestViewProps = {
   detail: EvaluationRequestDetail;
+  accepting?: boolean;
+  acceptError?: string | null;
+  showAcceptedToast?: boolean;
+  reassigning?: boolean;
+  reassignError?: string | null;
+  onAccept?: () => void | Promise<void>;
+  onReassign?: () => void | Promise<void>;
+  onDismissToast?: () => void;
   onSubmitted?: () => void | Promise<void>;
 };
 
@@ -52,55 +61,94 @@ function FieldBlock({
   );
 }
 
+function stepCircleClass(state: SectionStepState): string {
+  switch (state) {
+    case "complete":
+      return "bg-expert-action-green text-white shadow-sm";
+    case "in_progress":
+      return "border-2 border-expert-action-green bg-expert-action-green-soft text-expert-action-green-text";
+    default:
+      return "border border-border bg-input-bg text-text-muted";
+  }
+}
+
 function EvaluationProgressStepper({ form }: { form: EvaluationFormState }) {
   const { percent } = useMemo(() => evaluateFormProgress(form), [form]);
 
   return (
-    <div className="mb-8 rounded-2xl border border-border/80 bg-surface p-4 shadow-sm sm:p-5">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+    <div className="shrink-0 rounded-xl border border-border/70 bg-surface p-4 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text">
           Form progress
         </p>
         <p className="text-sm font-semibold tabular-nums text-text">
           {percent}% complete
         </p>
       </div>
-      <div className="mb-5 h-2 overflow-hidden rounded-full bg-input-bg">
-        <div
-          className="h-full rounded-full bg-emerald-600 transition-[width] duration-300 ease-out"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
       <div
-        className="flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="list"
       >
         {EVALUATION_FORM_SECTIONS.map((sec, i) => {
-          const done = isSectionComplete(form, sec.id);
+          const state = getSectionStepState(form, sec.id);
           return (
             <div
               key={sec.id}
               role="listitem"
-              className="flex min-w-[5.5rem] flex-col items-center gap-1.5 text-center sm:min-w-[6.5rem]"
+              className="relative flex min-w-[5.5rem] flex-1 flex-col items-center gap-1.5 text-center sm:min-w-[6.5rem]"
             >
+              {i > 0 ? (
+                <span className="absolute right-1/2 top-4 h-px w-full -translate-y-1/2 bg-border" />
+              ) : null}
               <span
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
-                  done
-                    ? "bg-emerald-600 text-white shadow-sm"
-                    : "border border-border bg-input-bg text-text-muted"
+                className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors duration-200 ${stepCircleClass(state)}`}
+                aria-label={
+                  state === "complete"
+                    ? `${sec.stepLabel} complete`
+                    : state === "in_progress"
+                      ? `${sec.stepLabel} in progress`
+                      : `${sec.stepLabel} pending`
+                }
+              >
+                {state === "complete" ? "✓" : i + 1}
+              </span>
+              <span
+                className={`max-w-[6.5rem] text-[10px] font-semibold uppercase leading-tight tracking-wide sm:text-[11px] ${
+                  state === "pending"
+                    ? "text-text-muted"
+                    : "text-expert-action-green-text"
                 }`}
               >
-                {done ? "✓" : i + 1}
-              </span>
-              <span className="max-w-[6.5rem] text-[10px] font-semibold uppercase leading-tight tracking-wide text-text-muted sm:text-[11px]">
                 {sec.stepLabel}
               </span>
             </div>
           );
         })}
       </div>
+      <div className="mt-3 rounded-lg bg-input-bg/70 px-3 py-2.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-text">
+          Unable to complete this request?
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-text-muted">
+          After accepting this request, please reassign it within the first 8
+          hours if you&apos;re unable to complete it.
+        </p>
+      </div>
     </div>
   );
+}
+
+function groupMedia(media: RequestMediaItem[]) {
+  const groups = new Map<string, Array<{ item: RequestMediaItem; index: number }>>();
+  media.forEach((item, index) => {
+    const key =
+      item.group?.trim() ||
+      (item.kind === "video" ? "Videos" : "Images");
+    const list = groups.get(key) ?? [];
+    list.push({ item, index });
+    groups.set(key, list);
+  });
+  return Array.from(groups.entries());
 }
 
 function MediaAndNotes({
@@ -110,54 +158,101 @@ function MediaAndNotes({
   detail: EvaluationRequestDetail;
   onOpen: (index: number) => void;
 }) {
+  const grouped = useMemo(() => groupMedia(detail.media), [detail.media]);
+
   return (
-    <aside className="space-y-6 self-start lg:sticky lg:top-6">
-      <section className="rounded-2xl border border-border/80 bg-surface p-4 shadow-sm sm:p-5">
-        <h2 className={labelClass}>Coin images & videos</h2>
+    <aside className="space-y-4 self-start">
+      <section className="rounded-xl border border-border/70 bg-surface p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className={labelClass}>Coin images & videos</h2>
+          {detail.media.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => onOpen(0)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/80 text-text-muted transition-colors hover:bg-input-bg hover:text-text"
+              aria-label="Expand media gallery"
+              title="Open gallery"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
+
         {detail.media.length === 0 ? (
-          <p className="mt-4 text-sm text-text-muted">
+          <p className="rounded-xl border border-dashed border-border bg-input-bg/40 px-4 py-8 text-center text-sm text-text-muted">
             No media attached to this request.
           </p>
         ) : (
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
-          {detail.media.map((m, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onOpen(i)}
-              className="group relative aspect-square overflow-hidden rounded-xl border border-border/80 bg-input-bg text-left shadow-sm outline-none ring-primary/0 transition-[box-shadow,ring-color] focus-visible:ring-2 focus-visible:ring-primary/30"
-            >
-              {m.kind === "image" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={m.src}
-                  alt={m.alt}
-                  className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                />
-              ) : (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={m.poster}
-                    alt={m.alt}
-                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                  />
-                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-sm text-white shadow-lg">
-                      ▶
-                    </span>
-                  </span>
-                </>
-              )}
-            </button>
-          ))}
-        </div>
+          <div className="space-y-4">
+            {grouped.map(([group, items]) => (
+              <div key={group}>
+                <p className="mb-2 text-xs font-medium text-text-muted">
+                  {group}{" "}
+                  <span className="text-text-muted/80">({items.length})</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {items.map(({ item: m, index: i }) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => onOpen(i)}
+                      className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border/80 bg-input-bg text-left shadow-sm outline-none transition-[box-shadow,ring-color] focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-[4.5rem] sm:w-[4.5rem]"
+                    >
+                      {m.kind === "image" ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={m.src}
+                          alt={m.alt}
+                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
+                        />
+                      ) : (
+                        <>
+                          {m.poster ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={m.poster}
+                              alt={m.alt}
+                              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
+                            />
+                          ) : (
+                            <span className="flex h-full w-full items-center justify-center bg-neutral-900 text-[10px] font-semibold text-white">
+                              Video
+                            </span>
+                          )}
+                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-[10px] text-white shadow">
+                              ▶
+                            </span>
+                          </span>
+                          {m.duration ? (
+                            <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1 py-0.5 text-[9px] font-semibold text-white">
+                              {m.duration}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 
-      <section className="rounded-2xl border border-border/80 bg-surface p-4 shadow-sm sm:p-5">
+      <section className="rounded-xl border border-border/70 bg-surface px-4 py-3.5 shadow-sm">
         <h2 className={labelClass}>User&apos;s notes</h2>
-        <p className="mt-3 text-sm leading-relaxed text-text">
+        <p className="mt-2 text-sm leading-relaxed text-text">
           {detail.userNotes}
         </p>
       </section>
@@ -165,57 +260,279 @@ function MediaAndNotes({
   );
 }
 
+function RequestBreadcrumb({ displayId }: { displayId: string }) {
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className="flex flex-wrap items-center gap-1.5 text-sm text-text-muted"
+    >
+      <Link
+        href="/expert/queue"
+        className="inline-flex items-center gap-1.5 font-medium transition-colors hover:text-text"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          aria-hidden
+        >
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+        Queue
+      </Link>
+      <span aria-hidden className="text-border">
+        &gt;
+      </span>
+      <span className="font-mono font-semibold text-text">
+        REQ-ID {displayId}
+      </span>
+    </nav>
+  );
+}
+
+function DeadlineBadge({
+  days,
+  deadlineAt,
+}: {
+  days: number;
+  deadlineAt: string | null;
+}) {
+  const remaining = formatDeadlineRemaining(deadlineAt);
+
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-input-bg/40 px-3.5 py-2.5">
+      <span
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+        aria-hidden
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
+          <circle cx="12" cy="13" r="8" />
+          <path d="M12 9v4l2 2" />
+          <path d="M9 2h6" />
+        </svg>
+      </span>
+      <div className="min-w-0 leading-tight">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+          Deadline
+        </p>
+        <p className="mt-0.5 text-base font-semibold tabular-nums text-text">
+          {remaining === "—"
+            ? `${days} ${days === 1 ? "day" : "days"}`
+            : remaining}
+        </p>
+        <p className="mt-0.5 text-xs text-text-muted">
+          {formatDeadlineDue(deadlineAt)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function RequestHeader({
   detail,
   formId,
+  showSubmit,
+  submitDisabled,
+  showDeadlineCard = true,
+  reassigning = false,
+  reassignDisabled = false,
+  onReassign,
 }: {
   detail: EvaluationRequestDetail;
   formId: string;
+  showSubmit: boolean;
+  submitDisabled: boolean;
+  showDeadlineCard?: boolean;
+  reassigning?: boolean;
+  reassignDisabled?: boolean;
+  onReassign?: () => void | Promise<void>;
 }) {
+  const reassignBlocked = reassignDisabled || reassigning || !onReassign;
+
   return (
-    <header className="mb-6 flex flex-col gap-4 border-b border-border/70 pb-6 lg:flex-row lg:items-start lg:justify-between">
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-text-muted">
-          Evaluation request page
-        </p>
-        <h1 className="mt-1 text-xl font-semibold capitalize tracking-tight text-text sm:text-2xl">
-          Coin identification & evaluation request
-        </h1>
-        <p className="mt-2 font-mono text-sm font-semibold text-text">
-          REQ-ID {formatRequestId(detail.requestId)}
-        </p>
-        <p className="mt-1 text-sm font-medium text-text">{detail.coinName}</p>
-        <p className="mt-1 text-sm text-text-muted">{detail.submittedDisplay}</p>
-        <p className="mt-3">
-          <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-950 ring-1 ring-amber-700/20">
-            {detail.deadlineDays}{" "}
-            {detail.deadlineDays === 1 ? "day" : "days"} remaining
-          </span>
-        </p>
+    <header className="mb-4 shrink-0">
+      <div className="mb-4 flex min-h-10 flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
+        <RequestBreadcrumb displayId={detail.displayId} />
+        {showSubmit ? (
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <span className="text-xs font-medium text-text-muted">
+              ✓ Auto save on
+            </span>
+            <button
+              type="button"
+              disabled={reassignBlocked}
+              title={
+                reassignBlocked && !reassigning
+                  ? "Offer id missing — open this request from the queue"
+                  : "Decline this offer and return it to the pool"
+              }
+              onClick={() => void onReassign?.()}
+              className="rounded-lg border border-primary px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {reassigning ? "Reassigning…" : "Reassign"}
+            </button>
+            <button
+              type="submit"
+              form={formId}
+              disabled={submitDisabled}
+              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Submit report →
+            </button>
+          </div>
+        ) : null}
       </div>
-      <div className="flex flex-wrap gap-2 lg:shrink-0 lg:justify-end">
-        <button
-          type="button"
-          className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text shadow-sm transition-colors hover:bg-input-bg disabled:cursor-not-allowed disabled:opacity-50"
-          disabled
-          title="Demo only"
-        >
-          Reassign
-        </button>
-        <button
-          type="submit"
-          form={formId}
-          className="hidden rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover lg:inline-flex"
-        >
-          Submit report
-        </button>
+      <div className="flex flex-col gap-4 rounded-xl border border-border/60 bg-surface px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="mb-1 font-mono text-xs text-text-muted">
+            REQ-ID {detail.displayId}
+          </p>
+          <h1 className="text-xl font-semibold tracking-tight text-text sm:text-[1.35rem]">
+            Coin identification & evaluation request
+          </h1>
+          <p className="mt-1.5 text-sm text-text-muted">
+            {formatReceivedOn(detail.receivedAt)}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          {showDeadlineCard ? (
+            <DeadlineBadge
+              days={detail.deadlineDays}
+              deadlineAt={detail.deadlineAt}
+            />
+          ) : null}
+        </div>
       </div>
     </header>
   );
 }
 
+function AcceptPanel({
+  accepting,
+  acceptDisabled,
+  acceptError,
+  reassigning = false,
+  reassignDisabled = false,
+  reassignError,
+  onAccept,
+  onReassign,
+}: {
+  accepting: boolean;
+  acceptDisabled: boolean;
+  acceptError?: string | null;
+  reassigning?: boolean;
+  reassignDisabled?: boolean;
+  reassignError?: string | null;
+  onAccept?: () => void | Promise<void>;
+  onReassign?: () => void | Promise<void>;
+}) {
+  const disabled = acceptDisabled || accepting || reassigning || !onAccept;
+  const skipDisabled =
+    reassignDisabled || reassigning || accepting || !onReassign;
+
+  return (
+    <div className="flex flex-col gap-5 rounded-xl border border-border/70 bg-surface px-5 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="min-w-0">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-text">
+          Ready to evaluate?
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-text-muted">
+          Begin the evaluation to access the form, review the images, and
+          complete the report.
+        </p>
+        {acceptError ? (
+          <p className="mt-3 max-w-xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {acceptError}
+          </p>
+        ) : null}
+        {reassignError ? (
+          <p className="mt-3 max-w-xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {reassignError}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void onReassign?.()}
+          disabled={skipDisabled}
+          className="inline-flex items-center justify-center rounded-lg border border-border bg-transparent px-6 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-input-bg disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {reassigning ? "Skipping…" : "Skip / Reassign"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void onAccept?.()}
+          disabled={disabled}
+          className="inline-flex items-center justify-center rounded-lg border border-primary bg-transparent px-6 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:border-border disabled:text-text-muted disabled:opacity-60"
+        >
+          {accepting
+            ? "Accepting…"
+            : acceptDisabled
+              ? "Accepted"
+              : "Accept request"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RequestPageFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="mx-auto flex h-full w-full max-w-[96rem] min-h-0 flex-col">
+      {children}
+    </div>
+  );
+}
+
+function AcceptedToast({ onDismiss }: { onDismiss?: () => void }) {
+  useEffect(() => {
+    if (!onDismiss) return;
+    const timer = window.setTimeout(onDismiss, 3500);
+    return () => window.clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div
+      role="status"
+      className="fixed inset-x-4 bottom-6 z-40 mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl border border-border/80 bg-surface px-4 py-3 text-sm font-medium text-text shadow-lg sm:inset-x-auto sm:right-6 sm:left-auto"
+    >
+      <span>Evaluation request was accepted successfully.</span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="shrink-0 text-text-muted transition-colors hover:text-text"
+        aria-label="Dismiss"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 export function ExpertEvaluationRequestView({
   detail,
+  accepting = false,
+  acceptError = null,
+  showAcceptedToast = false,
+  reassigning = false,
+  reassignError = null,
+  onAccept,
+  onReassign,
+  onDismissToast,
   onSubmitted,
 }: ExpertEvaluationRequestViewProps) {
   const formId = "expert-evaluation-form";
@@ -228,10 +545,12 @@ export function ExpertEvaluationRequestView({
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const reassignDisabled = !detail.offerId || !onReassign;
 
   useEffect(() => {
+    if (!detail.canSubmit) return;
     saveEvaluationDraft(detail.requestId, form);
-  }, [detail.requestId, form]);
+  }, [detail.requestId, detail.canSubmit, form]);
 
   const setField = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -244,7 +563,16 @@ export function ExpertEvaluationRequestView({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await submitReport(detail.requestId, form);
+      const coinTitle =
+        (typeof form.nameDesignation === "string" &&
+        form.nameDesignation.trim()
+          ? form.nameDesignation.trim()
+          : detail.coinName) || "Coin Evaluation";
+
+      await submitReport(detail.requestId, {
+        coinTitle,
+        content: form,
+      });
       clearEvaluationDraft(detail.requestId);
       await onSubmitted?.();
     } catch (err) {
@@ -258,33 +586,53 @@ export function ExpertEvaluationRequestView({
 
   if (detail.unavailable) {
     return (
-      <div>
-        <header className="mb-6 border-b border-border/70 pb-6">
-          <p className="text-xs font-medium text-text-muted">
-            Evaluation request page
-          </p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-text sm:text-2xl">
-            Coin identification & evaluation request
-          </h1>
-          <p className="mt-2 font-mono text-sm text-text">
-            REQ-ID {formatRequestId(detail.requestId)}
-          </p>
-        </header>
+      <RequestPageFrame>
+        <RequestHeader
+          detail={detail}
+          formId={formId}
+          showSubmit={false}
+          submitDisabled
+        />
 
-        <div className="grid gap-8 lg:grid-cols-2 lg:items-stretch">
+        <div className="grid gap-5 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start lg:gap-5">
           <MediaAndNotes detail={detail} onOpen={setLightbox} />
-          <div className="flex flex-col justify-center rounded-2xl border border-border/80 bg-surface p-8 text-center shadow-sm">
-            <p className="text-lg font-semibold text-text">Request unavailable</p>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-text-muted">
-              Another expert has already accepted this request. Please return to
-              the queue to pick a different one.
-            </p>
-            <Link
-              href="/expert/queue"
-              className="mt-8 inline-flex items-center justify-center self-center rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover"
+          <div className="rounded-xl border border-border/70 bg-surface p-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-text">
+                  Ready to evaluate?
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-text-muted">
+                  Begin the evaluation to access the form, review the images,
+                  and complete the report.
+                </p>
+              </div>
+              <Link
+                href="/expert/queue"
+                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
+              >
+                Back to Queue
+              </Link>
+            </div>
+
+            <div
+              role="status"
+              className="mt-4 flex gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"
             >
-              Back to queue
-            </Link>
+              <span
+                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-800 text-xs font-bold"
+                aria-hidden
+              >
+                i
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Request unavailable</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
+                  Another expert has already accepted this request. Please
+                  return to the queue to pick a different one.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -296,104 +644,199 @@ export function ExpertEvaluationRequestView({
             onIndexChange={setLightbox}
           />
         ) : null}
-      </div>
+      </RequestPageFrame>
     );
   }
 
+  // Pre-accept: review media first, then accept.
+  if (detail.needsAccept) {
+    return (
+      <RequestPageFrame>
+        <RequestHeader
+          detail={detail}
+          formId={formId}
+          showSubmit={false}
+          submitDisabled
+        />
+
+        <div className="grid gap-5 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start lg:gap-5">
+          <MediaAndNotes detail={detail} onOpen={setLightbox} />
+          <AcceptPanel
+            accepting={accepting}
+            acceptDisabled={false}
+            acceptError={acceptError}
+            reassigning={reassigning}
+            reassignDisabled={reassignDisabled}
+            reassignError={reassignError}
+            onAccept={onAccept}
+            onReassign={onReassign}
+          />
+        </div>
+
+        {lightbox != null ? (
+          <EvaluationMediaLightbox
+            items={detail.media}
+            index={lightbox}
+            onClose={() => setLightbox(null)}
+            onIndexChange={setLightbox}
+          />
+        ) : null}
+      </RequestPageFrame>
+    );
+  }
+
+  // Accepted / in progress — evaluation form.
   return (
-    <div className="pb-28 lg:pb-10">
-      <RequestHeader detail={detail} formId={formId} />
+    <div className="h-full min-h-0">
+      <RequestPageFrame>
+        <RequestHeader
+          detail={detail}
+          formId={formId}
+          showSubmit
+          submitDisabled={!detail.canSubmit || submitting}
+          reassigning={reassigning}
+          reassignDisabled={reassignDisabled}
+          onReassign={onReassign}
+        />
 
-      <EvaluationProgressStepper form={form} />
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[20rem_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[21rem_minmax(0,1fr)]">
+          <MediaAndNotes detail={detail} onOpen={setLightbox} />
 
-      {submitError ? (
-        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {submitError}
-        </p>
-      ) : null}
+          <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+            <EvaluationProgressStepper form={form} />
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,22rem)_1fr] lg:items-start xl:grid-cols-[minmax(0,24rem)_1fr]">
-        <MediaAndNotes detail={detail} onOpen={setLightbox} />
+            {reassignError ? (
+              <p className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {reassignError}
+              </p>
+            ) : null}
 
-        <form id={formId} className="min-w-0" onSubmit={handleSubmit}>
-          <div className="space-y-10">
-            {EVALUATION_FORM_SECTIONS.map((section, si) => (
-              <section
-                key={section.id}
-                className="rounded-2xl border border-border/80 bg-surface p-5 shadow-sm sm:p-6"
+            {submitError ? (
+              <p className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {submitError}
+              </p>
+            ) : null}
+
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-surface shadow-sm">
+              <form
+                id={formId}
+                className="flex h-full min-h-0 flex-col"
+                onSubmit={handleSubmit}
               >
-                <h2 className="text-base font-semibold text-text">
-                  <span className="mr-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                    {si + 1}
-                  </span>
-                  {section.title}
-                </h2>
-                <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                  {section.fields.map((field) => {
-                    const id = `${section.id}-${field.key}`;
+                <div className="shrink-0 border-b border-border/60 px-4 py-4 sm:px-5">
+                  <h2 className="text-xl font-semibold tracking-tight text-text">
+                    Evaluation form
+                  </h2>
+                </div>
+
+                <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-4 py-5 sm:px-5">
+                  {EVALUATION_FORM_SECTIONS.map((section, si) => {
+                    const sectionState = getSectionStepState(form, section.id);
+                    const filled = section.fields.filter(
+                      (field) => (form[field.key] ?? "").trim().length > 0,
+                    ).length;
+
                     return (
-                      <FieldBlock
-                        key={field.key}
-                        label={field.label}
-                        id={id}
-                        className={field.multiline ? "sm:col-span-2" : undefined}
+                      <section
+                        key={section.id}
+                        className="rounded-xl border border-border/70 bg-input-bg/20 p-4 sm:p-5"
                       >
-                        {field.multiline ? (
-                          <textarea
-                            id={id}
-                            name={field.key}
-                            rows={4}
-                            value={form[field.key] ?? ""}
-                            onChange={(e) =>
-                              setField(field.key, e.target.value)
-                            }
-                            className={`${inputClass} min-h-[6rem] resize-y`}
-                            placeholder="—"
-                          />
-                        ) : (
-                          <input
-                            id={id}
-                            name={field.key}
-                            type="text"
-                            inputMode={field.inputMode ?? "text"}
-                            value={form[field.key] ?? ""}
-                            onChange={(e) =>
-                              setField(field.key, e.target.value)
-                            }
-                            className={inputClass}
-                            placeholder="—"
-                          />
-                        )}
-                      </FieldBlock>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="text-base font-semibold text-text">
+                            <span
+                              className={`mr-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
+                                sectionState === "complete"
+                                  ? "bg-expert-action-green text-white"
+                                  : sectionState === "in_progress"
+                                    ? "border border-expert-action-green bg-expert-action-green-soft text-expert-action-green-text"
+                                    : "bg-primary/10 text-primary"
+                              }`}
+                            >
+                              {sectionState === "complete" ? "✓" : si + 1}
+                            </span>
+                            {section.title}
+                          </h3>
+                          <span
+                            className={`text-xs font-medium ${
+                              sectionState === "complete"
+                                ? "text-expert-action-green-text"
+                                : "text-text-muted"
+                            }`}
+                          >
+                            {sectionState === "complete"
+                              ? "Completed"
+                              : sectionState === "in_progress"
+                                ? `${filled} of ${section.fields.length} fields filled`
+                                : "Not started"}
+                          </span>
+                        </div>
+
+                        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                          {section.fields.map((field) => {
+                            const id = `${section.id}-${field.key}`;
+                            return (
+                              <FieldBlock
+                                key={field.key}
+                                label={field.label}
+                                id={id}
+                                className={
+                                  field.multiline ? "sm:col-span-2" : undefined
+                                }
+                              >
+                                {field.multiline ? (
+                                  <textarea
+                                    id={id}
+                                    name={field.key}
+                                    rows={4}
+                                    value={form[field.key] ?? ""}
+                                    onChange={(e) =>
+                                      setField(field.key, e.target.value)
+                                    }
+                                    className={`${inputClass} min-h-[6rem] resize-y`}
+                                    placeholder="—"
+                                  />
+                                ) : (
+                                  <input
+                                    id={id}
+                                    name={field.key}
+                                    type="text"
+                                    inputMode={field.inputMode ?? "text"}
+                                    value={form[field.key] ?? ""}
+                                    onChange={(e) =>
+                                      setField(field.key, e.target.value)
+                                    }
+                                    className={inputClass}
+                                    placeholder="—"
+                                  />
+                                )}
+                              </FieldBlock>
+                            );
+                          })}
+                        </div>
+                      </section>
                     );
                   })}
                 </div>
-              </section>
-            ))}
-          </div>
 
-          <div className="mt-10 hidden justify-end border-t border-border/60 pt-6 lg:flex">
-            <button
-              type="submit"
-              disabled={!detail.canSubmit || submitting}
-              className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:opacity-50"
-            >
-              {submitting ? "Submitting…" : "Submit report"}
-            </button>
+                <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border/70 bg-surface px-4 py-3 sm:px-5">
+                  <span className="text-xs font-medium text-text-muted">
+                    ✓ Saved draft
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={!detail.canSubmit || submitting}
+                    className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? "Submitting…" : "Submit report →"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </form>
-      </div>
+        </div>
+      </RequestPageFrame>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border/80 bg-surface/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden">
-        <button
-          type="submit"
-          form={formId}
-          disabled={!detail.canSubmit || submitting}
-          className="w-full rounded-lg bg-primary py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:opacity-50"
-        >
-          {submitting ? "Submitting…" : "Submit report"}
-        </button>
-      </div>
+      {showAcceptedToast ? <AcceptedToast onDismiss={onDismissToast} /> : null}
 
       {lightbox != null ? (
         <EvaluationMediaLightbox

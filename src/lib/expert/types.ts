@@ -21,6 +21,8 @@ export type ExpertProfile = {
   lastName: string;
   initials?: string;
   status: ExpertStatus;
+  /** Whether the expert is considered for future request allocation. */
+  isAvailableForRequests: boolean;
   activeCommittedRequestCount: number;
   maxActiveWorkload: number;
   lastAssignedAt: string | null;
@@ -45,6 +47,7 @@ export type BackendExpert = {
   name?: string;
   email: string;
   status?: string;
+  isAvailableForRequests?: boolean;
   maxActiveWorkload?: number;
   activeCommittedRequestCount?: number;
   lastAssignedAt?: string | null;
@@ -77,6 +80,8 @@ export type RequestStatus =
 
 export type BackendRequest = {
   _id: string;
+  displayId?: string;
+  coinTitle?: string | null;
   userId?: string;
   country?: string;
   payload?: Record<string, unknown>;
@@ -137,6 +142,8 @@ export type QueueListItem = {
   submittedDisplay: string;
   status: QueueItemStatus;
   deadlineDays: number;
+  /** ISO deadline used for precise remaining-time labels. */
+  deadlineAt?: string | null;
   coinName: string;
 };
 
@@ -144,6 +151,8 @@ export type DraftListItem = {
   id: string;
   submittedDisplay: string;
   deadlineDays: number;
+  /** ISO deadline used for precise remaining-time labels. */
+  deadlineAt?: string | null;
   progressPercent: number;
 };
 
@@ -153,7 +162,10 @@ export type HistoryAction = "resume" | "evaluate" | "view_report" | "none";
 
 export type HistoryRow = {
   requestId: string;
+  /** Shown in the table, e.g. REQ-00830 or API displayId. */
+  requestLabel: string;
   reportId?: string;
+  offerId?: string;
   coinName: string;
   type: string;
   dateDisplay: string;
@@ -170,15 +182,28 @@ export type HistorySummaryStats = {
 };
 
 export type RequestMediaItem =
-  | { kind: "image"; src: string; alt: string }
-  | { kind: "video"; poster: string; alt: string };
+  | { kind: "image"; src: string; alt: string; group?: string }
+  | {
+      kind: "video";
+      src: string;
+      poster: string;
+      alt: string;
+      group?: string;
+      duration?: string;
+    };
 
 export type EvaluationRequestDetail = {
   requestId: string;
+  /** Human-readable id from API (`displayId`), e.g. EV-KUBGCWV5. */
+  displayId: string;
   offerId?: string;
+  /** Request is offered and waiting for this expert to accept. */
+  needsAccept: boolean;
   unavailable: boolean;
   canSubmit: boolean;
   deadlineDays: number;
+  deadlineAt: string | null;
+  receivedAt: string | null;
   submittedDisplay: string;
   userNotes: string;
   coinName: string;

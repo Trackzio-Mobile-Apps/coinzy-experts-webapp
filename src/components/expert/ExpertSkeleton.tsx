@@ -1,0 +1,286 @@
+function cx(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
+}
+
+export function SkeletonBone({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <div
+      className={cx(
+        "animate-pulse rounded-md bg-border/70",
+        className,
+      )}
+      aria-hidden
+    />
+  );
+}
+
+export function ExpertStatCardsSkeleton({
+  count = 4,
+  columns = 4,
+}: {
+  count?: number;
+  columns?: 3 | 4;
+}) {
+  return (
+    <div
+      className={
+        columns === 3
+          ? "grid grid-cols-1 gap-4 sm:grid-cols-3"
+          : "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      }
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div
+          key={index}
+          className="min-h-28 rounded-xl border border-border/80 bg-surface px-5 py-4 shadow-sm xl:min-h-[9.5rem] xl:px-6 xl:py-5"
+        >
+          <SkeletonBone className="h-3 w-24" />
+          <SkeletonBone className="mt-3 h-8 w-16" />
+          <SkeletonBone className="mt-3 h-3 w-28" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function ExpertQueueListSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <ul className="mt-6 space-y-4" aria-busy="true" aria-label="Loading queue">
+      {Array.from({ length: rows }, (_, index) => (
+        <li key={index}>
+          <article className="flex flex-col gap-4 rounded-xl border border-border/80 border-l-4 border-l-border bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <div className="flex min-w-0 flex-1 gap-4">
+              <SkeletonBone className="h-14 w-14 shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <SkeletonBone className="h-4 w-40" />
+                <SkeletonBone className="h-3 w-52" />
+                <SkeletonBone className="h-3 w-28" />
+                <SkeletonBone className="h-5 w-20 rounded-full" />
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
+              <SkeletonBone className="h-3 w-24" />
+              <SkeletonBone className="h-10 w-28 rounded-lg" />
+            </div>
+          </article>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ExpertDraftsListSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <ul className="space-y-4" aria-busy="true" aria-label="Loading drafts">
+      {Array.from({ length: rows }, (_, index) => (
+        <li key={index}>
+          <article className="rounded-xl border border-border/80 border-l-4 border-l-border bg-surface p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <SkeletonBone className="h-3 w-40" />
+                  <SkeletonBone className="h-5 w-16 rounded-full" />
+                </div>
+                <SkeletonBone className="h-5 w-36" />
+                <SkeletonBone className="h-2 w-full rounded-full" />
+              </div>
+              <SkeletonBone className="h-10 w-28 rounded-lg" />
+            </div>
+          </article>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ExpertHistoryTableSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div
+      className="mt-8 rounded-2xl border border-border/70 bg-surface shadow-sm"
+      aria-busy="true"
+      aria-label="Loading history"
+    >
+      <div className="flex flex-col gap-4 border-b border-border/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <SkeletonBone className="h-4 w-40" />
+        <div className="flex gap-2">
+          <SkeletonBone className="h-8 w-16 rounded-lg" />
+          <SkeletonBone className="h-8 w-20 rounded-lg" />
+          <SkeletonBone className="h-8 w-20 rounded-lg" />
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-border/60 bg-input-bg/40">
+              {Array.from({ length: 6 }, (_, index) => (
+                <th key={index} className="px-4 py-3 sm:px-6">
+                  <SkeletonBone className="h-3 w-16" />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: rows }, (_, index) => (
+              <tr key={index} className="border-b border-border/40">
+                <td className="px-4 py-4 sm:px-6">
+                  <SkeletonBone className="h-4 w-36" />
+                </td>
+                <td className="px-4 py-4 sm:px-6">
+                  <SkeletonBone className="h-4 w-20" />
+                </td>
+                <td className="px-4 py-4 sm:px-6">
+                  <SkeletonBone className="h-4 w-16" />
+                </td>
+                <td className="px-4 py-4 sm:px-6">
+                  <SkeletonBone className="h-4 w-20" />
+                </td>
+                <td className="px-4 py-4 sm:px-6">
+                  <SkeletonBone className="h-5 w-16 rounded-full" />
+                </td>
+                <td className="px-4 py-4 sm:px-6">
+                  <SkeletonBone className="h-8 w-20 rounded-lg" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function ExpertProfileSkeleton() {
+  return (
+    <div className="space-y-8" aria-busy="true" aria-label="Loading profile">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <SkeletonBone className="h-7 w-36" />
+          <SkeletonBone className="mt-2 h-4 w-64" />
+        </div>
+        <SkeletonBone className="h-10 w-32 rounded-lg" />
+      </div>
+
+      <ExpertStatCardsSkeleton count={4} />
+
+      <section className="rounded-2xl border border-border/70 bg-surface p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-6 border-b border-border/60 pb-8 sm:flex-row sm:items-start">
+          <SkeletonBone className="h-20 w-20 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-3">
+            <SkeletonBone className="h-6 w-48" />
+            <SkeletonBone className="h-4 w-full max-w-lg" />
+            <div className="flex flex-wrap gap-2">
+              <SkeletonBone className="h-7 w-24 rounded-full" />
+              <SkeletonBone className="h-7 w-28 rounded-full" />
+              <SkeletonBone className="h-7 w-20 rounded-full" />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 space-y-8">
+          <div>
+            <SkeletonBone className="h-4 w-40" />
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className="space-y-2">
+                  <SkeletonBone className="h-3 w-20" />
+                  <SkeletonBone className="h-10 w-full rounded-lg" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <SkeletonBone className="h-4 w-32" />
+            <SkeletonBone className="mt-4 h-28 w-full rounded-lg" />
+            <div className="mt-6 flex flex-wrap gap-2">
+              {Array.from({ length: 6 }, (_, index) => (
+                <SkeletonBone key={index} className="h-8 w-28 rounded-full" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function ExpertRequestDetailSkeleton() {
+  return (
+    <div
+      className="rounded-2xl border border-border/70 bg-surface p-5 shadow-sm sm:p-7 lg:p-8"
+      aria-busy="true"
+      aria-label="Loading request"
+    >
+      <div className="border-b border-border/60 pb-5">
+        <SkeletonBone className="h-3 w-44" />
+        <SkeletonBone className="mt-3 h-6 w-72 max-w-full" />
+        <SkeletonBone className="mt-2 h-4 w-52" />
+      </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)]">
+        <div className="space-y-4">
+          <SkeletonBone className="h-3 w-40" />
+          <div className="flex flex-wrap gap-2.5">
+            {Array.from({ length: 6 }, (_, index) => (
+              <SkeletonBone
+                key={index}
+                className="h-[4.75rem] w-[4.75rem] rounded-lg sm:h-[5.5rem] sm:w-[5.5rem]"
+              />
+            ))}
+          </div>
+          <SkeletonBone className="h-20 w-full rounded-xl" />
+        </div>
+        <SkeletonBone className="h-52 w-full rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+export function ExpertSessionSkeleton() {
+  return (
+    <div
+      className="flex min-h-screen bg-expert-dashboard-canvas"
+      aria-busy="true"
+      aria-label="Loading session"
+    >
+      <aside className="hidden w-[17.5rem] shrink-0 border-r border-white/10 bg-expert-sidebar px-4 py-8 lg:block">
+        <SkeletonBone className="h-11 w-40 bg-white/15" />
+        <div className="mt-10 space-y-3">
+          {Array.from({ length: 4 }, (_, index) => (
+            <SkeletonBone key={index} className="h-10 w-full rounded-xl bg-white/10" />
+          ))}
+        </div>
+      </aside>
+      <div className="flex min-w-0 flex-1 items-start justify-center px-4 py-8 sm:px-6 lg:px-10">
+        <div className="w-full max-w-3xl space-y-4 rounded-2xl border border-border/70 bg-surface p-8 shadow-sm">
+          <SkeletonBone className="h-4 w-40" />
+          <SkeletonBone className="h-7 w-72 max-w-full" />
+          <SkeletonBone className="h-4 w-52" />
+          <div className="grid gap-4 pt-4 lg:grid-cols-2">
+            <SkeletonBone className="h-40 w-full rounded-xl" />
+            <SkeletonBone className="h-40 w-full rounded-xl" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ExpertReportModalSkeleton() {
+  return (
+    <div className="space-y-4 p-6" aria-busy="true" aria-label="Loading report">
+      <SkeletonBone className="mx-auto h-6 w-48" />
+      <SkeletonBone className="mx-auto h-4 w-32" />
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        {Array.from({ length: 8 }, (_, index) => (
+          <div key={index} className="space-y-2 rounded-lg border border-border/60 p-3">
+            <SkeletonBone className="h-3 w-20" />
+            <SkeletonBone className="h-4 w-28" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

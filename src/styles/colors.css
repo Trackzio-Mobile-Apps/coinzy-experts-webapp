@@ -1,13 +1,18 @@
 /**
  * Coinzy — design tokens (single source of truth for color).
- * Referenced from globals.css and available as CSS variables anywhere.
+ *
+ * Edit hex values HERE to restyle the app. Tailwind classes like
+ * `bg-expert-action-green` / `text-expert-action-blue` map to these vars
+ * via `src/app/globals.css`.
  */
 :root {
+  /* ── Brand & surfaces ─────────────────────────────────────────── */
   --coinzy-canvas: #f5f3f0;
   --coinzy-surface: #ffffff;
   --coinzy-primary: #7b3f40;
   --coinzy-primary-hover: #682f2f;
   --coinzy-primary-active: #5a2929;
+  --coinzy-primary-soft: #f3e8e8;
   --coinzy-text: #111111;
   --coinzy-text-muted: #6b7280;
   --coinzy-border: #e5e2dc;
@@ -16,15 +21,62 @@
   --coinzy-logo-accent: #4ade80;
   --coinzy-success-ring: #e8f5e9;
   --coinzy-success-check: #2e7d32;
-  /* Expert panel dashboard (swap mock module when API is ready) */
-  --coinzy-expert-sidebar: #4d2c2c;
+
+  /* ── Expert panel chrome ──────────────────────────────────────── */
+  --coinzy-expert-sidebar: #823f42;
   --coinzy-expert-sidebar-foreground: #f8f6f4;
   --coinzy-expert-sidebar-muted: rgba(248, 246, 244, 0.65);
-  --coinzy-expert-dashboard-canvas: #f8f9fa;
-  --coinzy-expert-queue-accent-blue: #2563eb;
-  --coinzy-expert-queue-accent-green: #15803d;
-  --coinzy-expert-draft-accent: #e5a00d;
+  --coinzy-expert-dashboard-canvas: #f6f7f8;
+  --coinzy-expert-nav-badge: #f97316;
+  --coinzy-expert-available: #22c55e;
+  --coinzy-expert-status-active: #4ade80;
+  --coinzy-expert-status-inactive: #fbbf24;
+
+  /* ── Expert actions: green (In Progress / Continue) ───────────── */
+  --coinzy-expert-action-green: #16a34a;
+  --coinzy-expert-action-green-hover: #15803d;
+  --coinzy-expert-action-green-soft: #ecfdf5;
+  --coinzy-expert-action-green-text: #166534;
+  --coinzy-expert-action-green-ring: rgba(22, 163, 74, 0.22);
+
+  /* ── Expert actions: blue (New / View Request / Accept) ────────── */
+  --coinzy-expert-action-blue: #3b82f6;
+  --coinzy-expert-action-blue-hover: #2563eb;
+  --coinzy-expert-action-blue-soft: #eff6ff;
+  --coinzy-expert-action-blue-text: #1d4ed8;
+  --coinzy-expert-action-blue-ring: rgba(59, 130, 246, 0.25);
+
+  /* ── Expert actions: amber (Draft) ────────────────────────────── */
+  --coinzy-expert-action-amber: #eab308;
+  --coinzy-expert-action-amber-hover: #ca8a04;
+  --coinzy-expert-action-amber-soft: #fef9c3;
+  --coinzy-expert-action-amber-text: #854d0e;
+  --coinzy-expert-action-amber-ring: rgba(234, 179, 8, 0.45);
+
+  /* ── Expert neutral badge (Pending / New offer) ───────────────── */
+  --coinzy-expert-badge-neutral: #f5f5f4;
+  --coinzy-expert-badge-neutral-text: #44403c;
+  --coinzy-expert-badge-neutral-ring: rgba(168, 162, 158, 0.7);
+
+  /* ── Expert history status pills ──────────────────────────────── */
+  --coinzy-expert-status-draft-bg: #f3f4f6;
+  --coinzy-expert-status-draft-text: #4b5563;
+  --coinzy-expert-status-new-bg: #fef9c3;
+  --coinzy-expert-status-new-text: #a16207;
+  --coinzy-expert-status-done-bg: #ecfdf5;
+  --coinzy-expert-status-done-text: #15803d;
+
+  /* ── Expert error / alerts ────────────────────────────────────── */
+  --coinzy-expert-error: #dc2626;
+  --coinzy-expert-error-soft: #fef2f2;
+
+  /* ── Drafts auto-save banner ──────────────────────────────────── */
   --coinzy-expert-draft-banner: #ecfdf5;
   --coinzy-expert-draft-banner-border: #bbf7d0;
   --coinzy-expert-draft-banner-text: #166534;
+
+  /* Aliases kept for existing class names */
+  --coinzy-expert-queue-accent-blue: var(--coinzy-expert-action-blue);
+  --coinzy-expert-queue-accent-green: var(--coinzy-expert-action-green);
+  --coinzy-expert-draft-accent: var(--coinzy-expert-action-amber);
 }

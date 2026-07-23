@@ -2,6 +2,8 @@ import {
   daysUntil,
   formatShortDate,
   formatSubmitted,
+  normalizeIsoDate,
+  normalizeMongoId,
   type HistoryPeriodFilter,
 } from "@/lib/expert/format";
 import type {
@@ -38,10 +40,148 @@ function asNumber(value: unknown): number | null {
   return null;
 }
 
+const MEDIA_GROUP_LABELS: Record<string, string> = {
+  obverse: "Obverse",
+  reverse: "Reverse",
+  edge: "Damage/Tear",
+  damage: "Damage/Tear",
+  tear: "Damage/Tear",
+  video: "Videos",
+  videos: "Videos",
+};
+
+function mediaGroupLabel(key: string): string {
+  const normalized = key.trim().toLowerCase();
+  return MEDIA_GROUP_LABELS[normalized] ?? key.trim();
+}
+
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+}
+
+function pushMediaUrl(
+  media: RequestMediaItem[],
+  url: string,
+  opts: { alt: string; group?: string; forceVideo?: boolean },
+) {
+  const src = url.trim();
+  if (!src) return;
+  const isVideo = opts.forceVideo || isVideoUrl(src);
+  if (isVideo) {
+    media.push({
+      kind: "video",
+      src,
+      poster: "",
+      alt: opts.alt,
+      group: opts.group,
+    });
+  } else {
+    media.push({
+      kind: "image",
+      src,
+      alt: opts.alt,
+      group: opts.group,
+    });
+  }
+}
+
+function parseMediaList(
+  rawMedia: unknown,
+  coinName: string,
+): RequestMediaItem[] {
+  const media: RequestMediaItem[] = [];
+
+  // Live API: { obverse: string[], reverse: string[], edge: string[], video: string }
+  if (rawMedia && typeof rawMedia === "object" && !Array.isArray(rawMedia)) {
+    const groups = rawMedia as Record<string, unknown>;
+    for (const [key, value] of Object.entries(groups)) {
+      const group = mediaGroupLabel(key);
+      const forceVideo = key.toLowerCase().includes("video");
+      if (typeof value === "string") {
+        pushMediaUrl(media, value, { alt: coinName, group, forceVideo });
+        continue;
+      }
+      if (!Array.isArray(value)) continue;
+      for (const item of value) {
+        if (typeof item === "string") {
+          pushMediaUrl(media, item, { alt: coinName, group, forceVideo });
+          continue;
+        }
+        const entry = asRecord(item);
+        const src = asString(entry.src ?? entry.url ?? entry.poster, "");
+        if (!src) continue;
+        pushMediaUrl(media, src, {
+          alt: asString(entry.alt ?? entry.label, coinName),
+          group,
+          forceVideo:
+            forceVideo ||
+            entry.kind === "video" ||
+            entry.type === "video",
+        });
+      }
+    }
+
+    // Prefer a still image as video poster when the API only sends an mp4 URL.
+    const firstImage = media.find((m) => m.kind === "image");
+    if (firstImage?.kind === "image") {
+      for (const item of media) {
+        if (item.kind === "video" && !item.poster) {
+          item.poster = firstImage.src;
+        }
+      }
+    }
+    return media;
+  }
+
+  if (Array.isArray(rawMedia)) {
+    for (const item of rawMedia) {
+      if (typeof item === "string") {
+        pushMediaUrl(media, item, { alt: coinName });
+        continue;
+      }
+      const entry = asRecord(item);
+      const src = asString(entry.src ?? entry.url ?? entry.poster, "");
+      if (!src) continue;
+      const alt = asString(entry.alt ?? entry.label, coinName);
+      const groupRaw = asString(
+        entry.group ?? entry.category ?? entry.label ?? entry.side,
+        "",
+      );
+      const group =
+        groupRaw && groupRaw !== "—" ? mediaGroupLabel(groupRaw) : undefined;
+      const forceVideo = entry.kind === "video" || entry.type === "video";
+      pushMediaUrl(media, src, { alt, group, forceVideo });
+      if (forceVideo && media.length > 0) {
+        const last = media[media.length - 1];
+        if (last?.kind === "video") {
+          last.duration =
+            typeof entry.duration === "string" ||
+            typeof entry.duration === "number"
+              ? String(entry.duration)
+              : undefined;
+          const poster = asString(entry.poster, "");
+          if (poster) last.poster = poster;
+        }
+      }
+    }
+  }
+
+  const firstImage = media.find((m) => m.kind === "image");
+  if (firstImage?.kind === "image") {
+    for (const item of media) {
+      if (item.kind === "video" && !item.poster) {
+        item.poster = firstImage.src;
+      }
+    }
+  }
+
+  return media;
+}
+
 export function parseRequestPayload(payload: unknown) {
   const data = asRecord(payload);
   const coinName = asString(
-    data.coinName ?? data.name ?? data.title,
+    data.coinName ?? data.name ?? data.title ?? data.coinTitle,
     "Evaluation request",
   );
   const type = asString(
@@ -49,53 +189,70 @@ export function parseRequestPayload(payload: unknown) {
     "—",
   );
   const userNotes = asString(
-    data.notes ?? data.userNotes ?? data.description,
+    data.notes ?? data.userNotes ?? data.description ?? data.userNote,
     "No notes provided.",
   );
   const valueInr = asNumber(data.valueInr ?? data.estimatedValueInr);
-
-  const media: RequestMediaItem[] = [];
-  const rawMedia = data.media ?? data.images ?? data.attachments;
-  if (Array.isArray(rawMedia)) {
-    for (const item of rawMedia) {
-      const entry = asRecord(item);
-      const src = asString(entry.src ?? entry.url ?? entry.poster, "");
-      if (!src) continue;
-      const alt = asString(entry.alt ?? entry.label, coinName);
-      if (entry.kind === "video" || entry.type === "video") {
-        media.push({ kind: "video", poster: src, alt });
-      } else {
-        media.push({ kind: "image", src, alt });
-      }
-    }
-  }
+  const media = parseMediaList(
+    data.media ?? data.images ?? data.attachments,
+    coinName,
+  );
 
   return { coinName, type, userNotes, valueInr, media };
 }
 
+function resolveCoinName(request: BackendRequest): string {
+  const fromTitle =
+    typeof request.coinTitle === "string" ? request.coinTitle.trim() : "";
+  if (fromTitle) return fromTitle;
+  return parseRequestPayload(request.payload).coinName;
+}
+
+function resolveDisplayId(request: BackendRequest): string {
+  const displayId =
+    typeof request.displayId === "string" ? request.displayId.trim() : "";
+  if (displayId) return displayId;
+  const id = normalizeMongoId(request._id);
+  return id.length > 8 ? id.slice(-8).toUpperCase() : id.toUpperCase();
+}
+
+function resolveHistoryRequestLabel(request: BackendRequest): string {
+  const displayId = resolveDisplayId(request);
+  if (/^(REQ|EV)[-_]/i.test(displayId)) {
+    return displayId.toUpperCase().replace("_", "-");
+  }
+  const digits = displayId.replace(/\D/g, "");
+  const tail = (digits || displayId).slice(-5).padStart(5, "0").toUpperCase();
+  return `REQ-${tail}`;
+}
+
 export function mapOfferToQueueItem(offer: BackendOffer): QueueListItem {
   const request = offer.request;
-  const parsed = parseRequestPayload(request.payload);
+  const deadlineAt = normalizeIsoDate(
+    request.deadlineAt ?? offer.expiresAt,
+  );
   return {
-    id: request._id,
-    offerId: offer._id,
+    id: normalizeMongoId(request._id),
+    offerId: normalizeMongoId(offer._id),
     submittedDisplay: formatSubmitted(request.createdAt),
     status: "pending_review",
-    deadlineDays: daysUntil(request.deadlineAt ?? offer.expiresAt),
-    coinName: parsed.coinName,
+    deadlineDays: daysUntil(deadlineAt),
+    deadlineAt,
+    coinName: resolveCoinName(request),
   };
 }
 
 export function mapAcceptedRequestToQueueItem(
   request: BackendRequest,
 ): QueueListItem {
-  const parsed = parseRequestPayload(request.payload);
+  const deadlineAt = normalizeIsoDate(request.deadlineAt);
   return {
-    id: request._id,
+    id: normalizeMongoId(request._id),
     submittedDisplay: formatSubmitted(request.acceptedAt ?? request.createdAt),
     status: "in_progress",
-    deadlineDays: daysUntil(request.deadlineAt),
-    coinName: parsed.coinName,
+    deadlineDays: daysUntil(deadlineAt),
+    deadlineAt,
+    coinName: resolveCoinName(request),
   };
 }
 
@@ -103,10 +260,12 @@ export function mapRequestToDraftItem(
   request: BackendRequest,
   progressPercent: number,
 ): DraftListItem {
+  const deadlineAt = normalizeIsoDate(request.deadlineAt);
   return {
-    id: request._id,
+    id: normalizeMongoId(request._id),
     submittedDisplay: formatSubmitted(request.acceptedAt ?? request.createdAt),
-    deadlineDays: daysUntil(request.deadlineAt),
+    deadlineDays: daysUntil(deadlineAt),
+    deadlineAt,
     progressPercent,
   };
 }
@@ -119,11 +278,8 @@ function historyStatusForRequest(status: string): HistoryRowStatus {
   return "new";
 }
 
-function historyActionForRequest(
-  status: string,
-  reportId?: string,
-): HistoryAction {
-  if ((status === "completed" || status === "report_submitted") && reportId) {
+function historyActionForRequest(status: string): HistoryAction {
+  if (status === "completed" || status === "report_submitted") {
     return "view_report";
   }
   if (status === "accepted") return "resume";
@@ -133,21 +289,23 @@ function historyActionForRequest(
 
 export function mapRequestToHistoryRow(
   request: BackendRequest,
-  reportId?: string,
+  opts?: { reportId?: string; offerId?: string },
 ): HistoryRow {
   const parsed = parseRequestPayload(request.payload);
   const status = historyStatusForRequest(request.status);
   return {
-    requestId: request._id,
-    reportId,
-    coinName: parsed.coinName,
+    requestId: normalizeMongoId(request._id),
+    requestLabel: resolveHistoryRequestLabel(request),
+    reportId: opts?.reportId ? normalizeMongoId(opts.reportId) : undefined,
+    offerId: opts?.offerId ? normalizeMongoId(opts.offerId) : undefined,
+    coinName: resolveCoinName(request),
     type: parsed.type,
     dateDisplay: formatShortDate(
       request.completedAt ?? request.submittedAt ?? request.createdAt,
     ),
     valueInr: parsed.valueInr,
     status,
-    action: historyActionForRequest(request.status, reportId),
+    action: historyActionForRequest(request.status),
   };
 }
 
@@ -168,7 +326,9 @@ export function filterHistoryByPeriod(
   period: HistoryPeriodFilter,
 ): HistoryRow[] {
   if (period === "all") return rows;
-  const requestById = new Map(requests.map((r) => [r._id, r]));
+  const requestById = new Map(
+    requests.map((r) => [normalizeMongoId(r._id), r]),
+  );
   return rows.filter((row) => {
     const request = requestById.get(row.requestId);
     const date =
@@ -187,19 +347,28 @@ export function buildEvaluationDetail(opts: {
   unavailable?: boolean;
 }): EvaluationRequestDetail {
   const parsed = parseRequestPayload(opts.request.payload);
-  const canSubmit = opts.request.status === "accepted" && !opts.unavailable;
+  const unavailable = Boolean(opts.unavailable);
+  const needsAccept =
+    !unavailable &&
+    opts.request.status === "offered" &&
+    Boolean(opts.offerId);
+  const canSubmit = opts.request.status === "accepted" && !unavailable;
 
   return {
-    requestId: opts.request._id,
-    offerId: opts.offerId,
-    unavailable: Boolean(opts.unavailable),
+    requestId: normalizeMongoId(opts.request._id),
+    displayId: resolveDisplayId(opts.request),
+    offerId: opts.offerId ? normalizeMongoId(opts.offerId) : undefined,
+    needsAccept,
+    unavailable,
     canSubmit,
     deadlineDays: daysUntil(opts.request.deadlineAt),
+    deadlineAt: normalizeIsoDate(opts.request.deadlineAt),
+    receivedAt: normalizeIsoDate(opts.request.createdAt),
     submittedDisplay: formatSubmitted(
       opts.request.acceptedAt ?? opts.request.createdAt,
     ),
     userNotes: parsed.userNotes,
-    coinName: parsed.coinName,
+    coinName: resolveCoinName(opts.request),
     media: parsed.media,
   };
 }

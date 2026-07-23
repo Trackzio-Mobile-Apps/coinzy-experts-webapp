@@ -1,0 +1,20 @@
+# Netlify + Next.js 16 (App Router)
+# Netlify auto-provisions the OpenNext adapter — do not pin @netlify/plugin-nextjs
+# unless you intentionally want to opt out of automatic updates.
+#
+# Required site env (Site settings → Environment variables):
+#   EXPERT_API_BASE_URL = https://coinzy-experts-api.trackzio.com
+#
+# Optional:
+#   NODE_VERSION is also set below for local CLI parity.
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Next.js detects the framework; leave publish directory unset so the
+  # Netlify Next.js runtime can configure output correctly.
+
+# Expert API is called server-side by /api/expert/* — ensure EXPERT_API_BASE_URL
+# is set in the Netlify UI for Production (and Preview if you use PR deploys).
