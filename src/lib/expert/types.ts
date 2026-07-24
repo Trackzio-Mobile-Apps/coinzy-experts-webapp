@@ -107,10 +107,14 @@ export type BackendOffer = {
 export type BackendReport = {
   _id: string;
   requestId: string;
+  requestDisplayId?: string | null;
   expertId?: string;
   userId?: string;
+  coinTitle?: string | null;
   content: unknown;
   attachments?: unknown[];
+  /** Present on newer API responses; prefer this over status when set. */
+  isDraft?: boolean;
   status?: string;
   submittedAt?: string | null;
   createdAt?: string;

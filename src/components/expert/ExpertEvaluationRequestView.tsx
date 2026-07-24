@@ -13,12 +13,22 @@ import {
   loadEvaluationDraft,
   saveEvaluationDraft,
 } from "@/lib/expert/evaluationDraftStorage";
-import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn } from "@/lib/expert/format";
-import { submitReport } from "@/lib/expert/reportsService";
+import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn, normalizeMongoId } from "@/lib/expert/format";
+import {
+  ExpertReportsError,
+  getReportByRequestId,
+  getStoredReportIdForRequest,
+  isDraftReport,
+  mediaToReportAttachments,
+  reportContentToFormState,
+  resolveReportCoinTitle,
+  saveDraftReport,
+  submitReport,
+} from "@/lib/expert/reportsService";
 import type { EvaluationRequestDetail, RequestMediaItem } from "@/lib/expert/types";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EvaluationMediaLightbox } from "./EvaluationMediaLightbox";
 
 type ExpertEvaluationRequestViewProps = {
@@ -545,12 +555,171 @@ export function ExpertEvaluationRequestView({
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [draftReportId, setDraftReportId] = useState<string | null>(() =>
+    getStoredReportIdForRequest(detail.requestId),
+  );
+  const [draftSaveState, setDraftSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [hydrated, setHydrated] = useState(false);
   const reassignDisabled = !detail.offerId || !onReassign;
+  const draftReportIdRef = useRef(draftReportId);
+  const saveGenerationRef = useRef(0);
+  const formRef = useRef(form);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
-    if (!detail.canSubmit) return;
+    draftReportIdRef.current = draftReportId;
+  }, [draftReportId]);
+
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+
+  // Hydrate from server draft when available (preferred over local-only).
+  useEffect(() => {
+    if (!detail.canSubmit) {
+      setHydrated(true);
+      return;
+    }
+
+    let cancelled = false;
+    setHydrated(false);
+
+    void (async () => {
+      try {
+        const report = await getReportByRequestId(detail.requestId);
+        if (cancelled) return;
+        if (isDraftReport(report)) {
+          const serverForm = reportContentToFormState(report.content);
+          const localForm = loadEvaluationDraft(detail.requestId);
+          const serverFilled = evaluateFormProgress(serverForm).filled;
+          const localFilled = localForm
+            ? evaluateFormProgress(localForm).filled
+            : 0;
+          // Prefer whichever side has more filled fields.
+          const nextForm =
+            localFilled > serverFilled && localForm ? localForm : serverForm;
+          setForm(nextForm);
+          saveEvaluationDraft(detail.requestId, nextForm);
+          setDraftReportId(normalizeMongoId(report._id) || null);
+        } else if (report) {
+          // Already submitted — keep local empty; submit will 409 if retried.
+          setDraftReportId(normalizeMongoId(report._id) || null);
+        }
+      } catch (err) {
+        if (
+          !(err instanceof ExpertReportsError && err.status === 404) &&
+          process.env.NODE_ENV !== "production"
+        ) {
+          console.warn("[expert] draft hydrate failed", err);
+        }
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detail.canSubmit, detail.requestId]);
+
+  // Local autosave always; server draft when at least one field is filled.
+  useEffect(() => {
+    if (!detail.canSubmit || !hydrated || submittedRef.current) return;
+
     saveEvaluationDraft(detail.requestId, form);
-  }, [detail.requestId, detail.canSubmit, form]);
+
+    const { filled } = evaluateFormProgress(form);
+    if (filled === 0) return;
+
+    const generation = ++saveGenerationRef.current;
+    setDraftSaveState("saving");
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        if (submittedRef.current) return;
+        try {
+          const report = await saveDraftReport({
+            requestId: detail.requestId,
+            reportId: draftReportIdRef.current,
+            coinTitle: resolveReportCoinTitle(form, detail.coinName),
+            content: form,
+            attachments: mediaToReportAttachments(detail.media),
+          });
+          if (generation !== saveGenerationRef.current || submittedRef.current) {
+            return;
+          }
+          const id = normalizeMongoId(report._id);
+          if (id) {
+            draftReportIdRef.current = id;
+            setDraftReportId(id);
+          }
+          setDraftSaveState("saved");
+        } catch (err) {
+          if (generation !== saveGenerationRef.current) return;
+          setDraftSaveState("error");
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[expert] draft autosave failed", err);
+          }
+        }
+      })();
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    detail.requestId,
+    detail.canSubmit,
+    detail.coinName,
+    detail.media,
+    form,
+    hydrated,
+  ]);
+
+  // Flush draft on leave / tab hide so closing without submit still marks draft.
+  useEffect(() => {
+    if (!detail.canSubmit) return;
+
+    const flushDraft = () => {
+      if (submittedRef.current) return;
+      const current = formRef.current;
+      const { filled } = evaluateFormProgress(current);
+      if (filled === 0) return;
+      saveEvaluationDraft(detail.requestId, current);
+      void saveDraftReport({
+        requestId: detail.requestId,
+        reportId: draftReportIdRef.current,
+        coinTitle: resolveReportCoinTitle(current, detail.coinName),
+        content: current,
+        attachments: mediaToReportAttachments(detail.media),
+      })
+        .then((report) => {
+          if (submittedRef.current) return;
+          const id = normalizeMongoId(report._id);
+          if (id) {
+            draftReportIdRef.current = id;
+            setDraftReportId(id);
+          }
+        })
+        .catch(() => {
+          // best-effort flush
+        });
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushDraft();
+    };
+
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flushDraft();
+    };
+  }, [detail.canSubmit, detail.requestId, detail.coinName, detail.media]);
 
   const setField = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -562,20 +731,22 @@ export function ExpertEvaluationRequestView({
 
     setSubmitting(true);
     setSubmitError(null);
+    // Prevent a stale autosave from racing the final submit.
+    saveGenerationRef.current += 1;
+    submittedRef.current = true;
     try {
-      const coinTitle =
-        (typeof form.nameDesignation === "string" &&
-        form.nameDesignation.trim()
-          ? form.nameDesignation.trim()
-          : detail.coinName) || "Coin Evaluation";
+      const coinTitle = resolveReportCoinTitle(form, detail.coinName);
 
       await submitReport(detail.requestId, {
         coinTitle,
         content: form,
+        attachments: mediaToReportAttachments(detail.media),
+        reportId: draftReportIdRef.current,
       });
       clearEvaluationDraft(detail.requestId);
       await onSubmitted?.();
     } catch (err) {
+      submittedRef.current = false;
       setSubmitError(
         err instanceof Error ? err.message : "Unable to submit report.",
       );
@@ -820,7 +991,14 @@ export function ExpertEvaluationRequestView({
 
                 <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border/70 bg-surface px-4 py-3 sm:px-5">
                   <span className="text-xs font-medium text-text-muted">
-                    ✓ Saved draft
+                    {draftSaveState === "saving"
+                      ? "Saving draft…"
+                      : draftSaveState === "error"
+                        ? "Draft save failed — will retry"
+                        : draftSaveState === "saved" ||
+                            evaluateFormProgress(form).filled > 0
+                          ? "✓ Draft saved"
+                          : "✓ Auto save on"}
                   </span>
                   <button
                     type="submit"

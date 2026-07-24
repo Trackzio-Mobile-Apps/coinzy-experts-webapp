@@ -3,22 +3,64 @@
 import { ExpertDraftsPageBody } from "@/components/expert/ExpertDraftsPageBody";
 import { evaluateFormProgress } from "@/lib/expert/evaluationForm";
 import { loadEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
+import { normalizeMongoId } from "@/lib/expert/format";
 import { mapRequestToDraftItem } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
-import { useMemo } from "react";
+import {
+  getReportByRequestId,
+  isDraftReport,
+  reportProgressPercent,
+} from "@/lib/expert/reportsService";
+import type { DraftListItem } from "@/lib/expert/types";
+import { useEffect, useState } from "react";
 
 export function ExpertDraftsPageClient() {
   const { acceptedRequests, isLoading, error } = useExpertPanelData();
+  const [items, setItems] = useState<DraftListItem[]>([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(true);
 
-  const items = useMemo(
-    () =>
-      acceptedRequests.map((request) => {
-        const draft = loadEvaluationDraft(request._id);
-        const progress = draft ? evaluateFormProgress(draft).percent : 0;
-        return mapRequestToDraftItem(request, progress);
-      }),
-    [acceptedRequests],
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      setLoadingDrafts(true);
+      try {
+        const rows = await Promise.all(
+          acceptedRequests.map(async (request) => {
+            const requestId = normalizeMongoId(request._id);
+            const local = loadEvaluationDraft(requestId);
+            const localProgress = local
+              ? evaluateFormProgress(local).percent
+              : 0;
+
+            try {
+              const report = await getReportByRequestId(requestId);
+              if (!isDraftReport(report)) return null;
+
+              const serverProgress = reportProgressPercent(report);
+              const progress = Math.max(serverProgress, localProgress);
+              if (progress <= 0) return null;
+              return mapRequestToDraftItem(request, progress);
+            } catch {
+              // No server draft — still show if local autosave has content.
+              if (localProgress <= 0) return null;
+              return mapRequestToDraftItem(request, localProgress);
+            }
+          }),
+        );
+
+        if (!cancelled) {
+          setItems(rows.filter((row): row is DraftListItem => row != null));
+        }
+      } finally {
+        if (!cancelled) setLoadingDrafts(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [acceptedRequests]);
 
   return (
     <>
@@ -27,7 +69,10 @@ export function ExpertDraftsPageClient() {
           {error}
         </p>
       ) : null}
-      <ExpertDraftsPageBody items={items} isLoading={isLoading} />
+      <ExpertDraftsPageBody
+        items={items}
+        isLoading={isLoading || loadingDrafts}
+      />
     </>
   );
 }

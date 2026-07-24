@@ -4,7 +4,6 @@ import { evaluateFormProgress } from "@/lib/expert/evaluationForm";
 import { normalizeMongoId } from "@/lib/expert/format";
 import {
   buildQueueList,
-  mapRequestToDraftItem,
 } from "@/lib/expert/requestMappers";
 import {
   getAcceptedRequests,
@@ -79,13 +78,13 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
 
   const navCounts = useMemo<ExpertNavCounts>(() => {
     const queue = buildQueueList(offers, acceptedRequests).length;
-    const drafts = acceptedRequests.map((request) => {
+    // Count accepted requests that have local draft progress (server drafts
+    // hydrate this on open; Drafts page also loads server drafts).
+    const drafts = acceptedRequests.filter((request) => {
       const requestId = normalizeMongoId(request._id);
       const draft = loadEvaluationDraft(requestId);
-      const progress = draft
-        ? evaluateFormProgress(draft).percent
-        : 0;
-      return mapRequestToDraftItem(request, progress);
+      if (!draft) return false;
+      return evaluateFormProgress(draft).filled > 0;
     }).length;
     return { queue, drafts };
   }, [offers, acceptedRequests]);
