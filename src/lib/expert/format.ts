@@ -139,6 +139,13 @@ export function formatDeadlineRemaining(isoDate: unknown): string {
   return `${days}d ${remHours}h`;
 }
 
+/** True when `deadlineAt` is in the past (submission no longer allowed). */
+export function isDeadlineExceeded(isoDate: unknown): boolean {
+  const target = parseDate(isoDate);
+  if (!target) return false;
+  return target.getTime() <= Date.now();
+}
+
 export function formatSubmitted(isoDate: unknown): string {
   const date = parseDate(isoDate);
   if (!date) return "Submitted: —";

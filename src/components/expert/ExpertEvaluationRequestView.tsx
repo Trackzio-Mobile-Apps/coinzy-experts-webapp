@@ -13,7 +13,7 @@ import {
   loadEvaluationDraft,
   saveEvaluationDraft,
 } from "@/lib/expert/evaluationDraftStorage";
-import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn, normalizeMongoId } from "@/lib/expert/format";
+import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn, isDeadlineExceeded, normalizeMongoId } from "@/lib/expert/format";
 import {
   ExpertReportsError,
   getReportByRequestId,
@@ -27,9 +27,11 @@ import {
 } from "@/lib/expert/reportsService";
 import type { EvaluationRequestDetail, RequestMediaItem } from "@/lib/expert/types";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EvaluationMediaLightbox } from "./EvaluationMediaLightbox";
+import { ExpertDeadlineExceededModal } from "./ExpertDeadlineExceededModal";
 
 type ExpertEvaluationRequestViewProps = {
   detail: EvaluationRequestDetail;
@@ -545,6 +547,7 @@ export function ExpertEvaluationRequestView({
   onDismissToast,
   onSubmitted,
 }: ExpertEvaluationRequestViewProps) {
+  const router = useRouter();
   const formId = "expert-evaluation-form";
   const [form, setForm] = useState<EvaluationFormState>(() => {
     return (
@@ -562,11 +565,26 @@ export function ExpertEvaluationRequestView({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [hydrated, setHydrated] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const reassignDisabled = !detail.offerId || !onReassign;
   const draftReportIdRef = useRef(draftReportId);
   const saveGenerationRef = useRef(0);
   const formRef = useRef(form);
   const submittedRef = useRef(false);
+
+  const deadlineExceeded = isDeadlineExceeded(detail.deadlineAt);
+  // Re-check when the clock crosses the deadline while the page is open.
+  useEffect(() => {
+    if (!detail.deadlineAt || deadlineExceeded) return;
+    const target = new Date(detail.deadlineAt).getTime();
+    if (Number.isNaN(target)) return;
+    const delay = Math.max(0, target - Date.now()) + 250;
+    const timer = window.setTimeout(() => setNowMs(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [detail.deadlineAt, deadlineExceeded, nowMs]);
+
+  const submitBlocked =
+    !detail.canSubmit || submitting || isDeadlineExceeded(detail.deadlineAt);
 
   useEffect(() => {
     draftReportIdRef.current = draftReportId;
@@ -728,6 +746,12 @@ export function ExpertEvaluationRequestView({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!detail.canSubmit) return;
+    if (isDeadlineExceeded(detail.deadlineAt)) {
+      setSubmitError(
+        "The allocated time for this evaluation has expired. This request can no longer be submitted.",
+      );
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -864,7 +888,7 @@ export function ExpertEvaluationRequestView({
           detail={detail}
           formId={formId}
           showSubmit
-          submitDisabled={!detail.canSubmit || submitting}
+          submitDisabled={submitBlocked}
           reassigning={reassigning}
           reassignDisabled={reassignDisabled}
           onReassign={onReassign}
@@ -1002,7 +1026,7 @@ export function ExpertEvaluationRequestView({
                   </span>
                   <button
                     type="submit"
-                    disabled={!detail.canSubmit || submitting}
+                    disabled={submitBlocked}
                     className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {submitting ? "Submitting…" : "Submit report →"}
@@ -1013,6 +1037,11 @@ export function ExpertEvaluationRequestView({
           </div>
         </div>
       </RequestPageFrame>
+
+      <ExpertDeadlineExceededModal
+        open={deadlineExceeded}
+        onGoBack={() => router.push("/expert/queue")}
+      />
 
       {showAcceptedToast ? <AcceptedToast onDismiss={onDismissToast} /> : null}
 
