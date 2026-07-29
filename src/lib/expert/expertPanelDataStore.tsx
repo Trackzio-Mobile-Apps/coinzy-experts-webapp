@@ -113,10 +113,27 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
             "[expert] GET /experts/me/requests?status=accepted",
             nextAccepted,
           );
+
+          // Some backends omit accepted rows from ?status=accepted while still
+          // returning them on the unfiltered list — merge both sources.
+          const acceptedById = new Map<string, BackendRequest>();
+          for (const request of nextAccepted) {
+            const id = normalizeMongoId(request._id);
+            if (id) acceptedById.set(id, request);
+          }
+          for (const request of nextRequests) {
+            if (request.status !== "accepted") continue;
+            const id = normalizeMongoId(request._id);
+            if (id && !acceptedById.has(id)) {
+              acceptedById.set(id, request);
+            }
+          }
+          const mergedAccepted = Array.from(acceptedById.values());
+
           setOffers(nextOffers);
           setRequests(nextRequests);
-          setAcceptedRequests(nextAccepted);
-          syncProfileActiveCount(nextAccepted.length);
+          setAcceptedRequests(mergedAccepted);
+          syncProfileActiveCount(mergedAccepted.length);
           setError(null);
           // Keep profile stats (completed, etc.) in sync with the server.
           void refreshProfile({ silent: true });

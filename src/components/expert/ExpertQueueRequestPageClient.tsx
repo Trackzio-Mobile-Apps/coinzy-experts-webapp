@@ -2,6 +2,7 @@
 
 import { ExpertEvaluationRequestView } from "@/components/expert/ExpertEvaluationRequestView";
 import { ExpertRequestDetailSkeleton } from "@/components/expert/ExpertSkeleton";
+import { SUBMIT_SUCCESS_TOAST_KEY } from "@/lib/expert/constants";
 import {
   acceptOffer,
   ExpertOffersError,
@@ -12,12 +13,37 @@ import { buildEvaluationDetail } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import { formatRequestId, normalizeMongoId } from "@/lib/expert/format";
+import {
+  getAcceptedRequests,
+  getExpertRequests,
+} from "@/lib/expert/requestsService";
 import type {
   BackendRequest,
   EvaluationRequestDetail,
 } from "@/lib/expert/types";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+async function findOwnedRequestForExpert(
+  id: string,
+): Promise<BackendRequest | null> {
+  const normalized = normalizeMongoId(id);
+  if (!normalized) return null;
+  try {
+    const [accepted, all] = await Promise.all([
+      getAcceptedRequests(),
+      getExpertRequests(),
+    ]);
+    // Prefer explicit accepted, but any row in /me/requests for this id is ours.
+    return (
+      accepted.find((r) => normalizeMongoId(r._id) === normalized) ??
+      all.find((r) => normalizeMongoId(r._id) === normalized) ??
+      null
+    );
+  } catch {
+    return null;
+  }
+}
 
 type ExpertQueueRequestPageClientProps = {
   requestId: string;
@@ -112,15 +138,26 @@ export function ExpertQueueRequestPageClient({
     setAcceptError(null);
   }, []);
 
+  const recoverAsAccepted = useCallback(
+    (owned: BackendRequest) => {
+      applyAcceptedRequest({ ...owned, status: "accepted" });
+      setJustAccepted(true);
+      setUnavailable(false);
+      setAcceptError(null);
+      void refreshProfile({ silent: true });
+      void refresh({ silent: true });
+    },
+    [applyAcceptedRequest, refresh, refreshProfile],
+  );
+
   const handleAccept = useCallback(async () => {
     if (accepting) return;
 
     setAccepting(true);
     setAcceptError(null);
     setReassignError(null);
+    let offerToAccept = actionOfferId;
     try {
-      let offerToAccept = actionOfferId;
-
       // If the local offer list went stale, refresh once then retry lookup.
       if (!offerToAccept) {
         await refresh({ silent: true });
@@ -128,6 +165,16 @@ export function ExpertQueueRequestPageClient({
       }
 
       if (!offerToAccept) {
+        const owned = await findOwnedRequestForExpert(requestId);
+        if (owned) {
+          recoverAsAccepted(owned);
+          return;
+        }
+        const local = requestSnapshotRef.current;
+        if (local) {
+          recoverAsAccepted(local);
+          return;
+        }
         markTakenByAnotherExpert();
         return;
       }
@@ -137,19 +184,45 @@ export function ExpertQueueRequestPageClient({
         requestId,
       });
       const accepted = await acceptOffer(offerToAccept);
-      applyAcceptedRequest(accepted.request, offerToAccept);
-      setJustAccepted(true);
-      void refreshProfile({ silent: true });
-      void refresh({ silent: true });
+      recoverAsAccepted(accepted.request);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unable to accept offer.";
       const status = err instanceof ExpertOffersError ? err.status : 0;
-      if (
+      console.warn("[expert] accept failed", { status, message, requestId });
+
+      const looksAlreadyAccepted =
         status === 409 ||
-        status === 404 ||
-        /already|unavailable|expired|not found|assigned|taken/i.test(message)
-      ) {
+        /already|assigned|taken|unavailable|expired|not found/i.test(message);
+
+      if (looksAlreadyAccepted) {
+        // Backend often returns 409 "already accepted by expert" for *this*
+        // expert, while /me/requests may lag or omit the row. Recover from
+        // owned lists first, then from the offer/request we already have.
+        const owned = await findOwnedRequestForExpert(requestId);
+        if (owned) {
+          recoverAsAccepted(owned);
+          return;
+        }
+
+        const offerIdNorm = offerToAccept
+          ? normalizeMongoId(offerToAccept)
+          : "";
+        const fromOffer = offers.find(
+          (o) =>
+            (offerIdNorm && normalizeMongoId(o._id) === offerIdNorm) ||
+            normalizeMongoId(o.request._id) === requestId,
+        )?.request;
+        const local = fromOffer ?? requestSnapshotRef.current;
+        if (local) {
+          console.log(
+            "[expert] recovering accept from local request snapshot after 409",
+            { requestId, status: local.status },
+          );
+          recoverAsAccepted(local);
+          return;
+        }
+
         markTakenByAnotherExpert();
         void refresh({ silent: true });
         return;
@@ -163,11 +236,18 @@ export function ExpertQueueRequestPageClient({
     accepting,
     offerId,
     requestId,
+    offers,
     refresh,
-    refreshProfile,
-    applyAcceptedRequest,
+    recoverAsAccepted,
     markTakenByAnotherExpert,
   ]);
+
+  // If the request is already accepted for this expert, open the evaluation form.
+  useEffect(() => {
+    if (!request || request.status !== "accepted") return;
+    setJustAccepted(true);
+    setUnavailable(false);
+  }, [request]);
 
   const handleReassign = useCallback(async () => {
     if (!actionOfferId || reassigning) return;
@@ -255,7 +335,12 @@ export function ExpertQueueRequestPageClient({
         }
         void refreshProfile({ silent: true });
         await refresh({ silent: true });
-        router.push("/expert/history");
+        try {
+          sessionStorage.setItem(SUBMIT_SUCCESS_TOAST_KEY, "1");
+        } catch {
+          /* ignore */
+        }
+        router.push("/expert/queue");
       }}
     />
   );

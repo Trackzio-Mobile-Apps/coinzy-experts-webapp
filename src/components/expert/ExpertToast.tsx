@@ -2,11 +2,13 @@
 
 import { useEffect } from "react";
 
+type ExpertToastVariant = "success" | "error" | "info";
+
 type ExpertToastProps = {
   open: boolean;
   message: string;
   title?: string;
-  variant?: "success" | "error";
+  variant?: ExpertToastVariant;
   onClose: () => void;
   durationMs?: number;
 };
@@ -46,6 +48,29 @@ function ErrorIcon() {
   );
 }
 
+function InfoIcon() {
+  return (
+    <span
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-expert-action-blue text-[11px] font-bold leading-none text-white"
+      aria-hidden
+    >
+      i
+    </span>
+  );
+}
+
+const accentClass: Record<ExpertToastVariant, string> = {
+  success: "bg-expert-action-green",
+  error: "bg-expert-error",
+  info: "bg-expert-action-blue",
+};
+
+const positionClass: Record<ExpertToastVariant, string> = {
+  success: "bottom-6 right-4 sm:bottom-8 sm:right-6",
+  error: "right-4 top-20 sm:right-6 sm:top-24",
+  info: "bottom-6 right-4 sm:bottom-8 sm:right-6",
+};
+
 export function ExpertToast({
   open,
   message,
@@ -67,39 +92,46 @@ export function ExpertToast({
       role={isError ? "alert" : "status"}
       aria-live={isError ? "assertive" : "polite"}
       aria-hidden={!open}
-      className={`fixed z-[120] flex w-[min(20rem,calc(100vw-2rem))] items-center gap-3 rounded-xl border bg-surface px-4 py-3 shadow-xl transition-[opacity,transform] duration-200 ease-out sm:w-[22rem] ${
-        isError
-          ? "right-4 top-20 border-expert-error/25 border-l-4 border-l-expert-error sm:right-6 sm:top-24"
-          : "bottom-6 right-4 border-border/60 border-l-4 border-l-expert-action-green sm:bottom-8 sm:right-6"
+      className={`fixed z-[120] w-fit max-w-[min(26rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border/60 bg-surface shadow-xl transition-[opacity,transform] duration-200 ease-out ${
+        positionClass[variant]
       } ${
         open
           ? "pointer-events-auto translate-y-0 opacity-100"
           : "pointer-events-none translate-y-3 opacity-0"
       }`}
     >
-      {isError ? <ErrorIcon /> : <SuccessIcon />}
-      <div className="min-w-0 flex-1">
-        {title ? (
-          <p className="text-sm font-semibold text-text">{title}</p>
-        ) : null}
-        <p
-          className={`text-sm ${
-            title
-              ? "mt-0.5 font-normal leading-relaxed text-text-muted"
-              : "font-semibold text-text"
-          }`}
+      <div className={`absolute inset-y-0 left-0 w-1 ${accentClass[variant]}`} />
+      <div className="flex items-center gap-3 py-3 pr-3 pl-4">
+        {variant === "error" ? (
+          <ErrorIcon />
+        ) : variant === "info" ? (
+          <InfoIcon />
+        ) : (
+          <SuccessIcon />
+        )}
+        <div className="min-w-0 flex-1">
+          {title ? (
+            <p className="text-sm font-semibold text-text">{title}</p>
+          ) : null}
+          <p
+            className={`text-sm ${
+              title
+                ? "mt-0.5 font-normal leading-relaxed text-text-muted"
+                : "font-semibold leading-snug text-text"
+            }`}
+          >
+            {message}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 self-start text-lg font-normal leading-none text-text-muted transition-colors hover:text-text"
+          aria-label="Dismiss notification"
         >
-          {message}
-        </p>
+          ×
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        className="shrink-0 text-lg font-normal leading-none text-text-muted transition-colors hover:text-text"
-        aria-label="Dismiss notification"
-      >
-        ×
-      </button>
     </div>
   );
 }
