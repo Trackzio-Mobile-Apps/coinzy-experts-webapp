@@ -10,14 +10,10 @@ import {
 import { clearEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
 import { buildEvaluationDetail } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
-import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import { formatRequestId, normalizeMongoId } from "@/lib/expert/format";
-import type {
-  BackendRequest,
-  EvaluationRequestDetail,
-} from "@/lib/expert/types";
+import type { EvaluationRequestDetail } from "@/lib/expert/types";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ExpertQueueRequestPageClientProps = {
   requestId: string;
@@ -33,35 +29,24 @@ export function ExpertQueueRequestPageClient({
     rawOfferId && rawOfferId !== "[object Object]"
       ? normalizeMongoId(rawOfferId)
       : undefined;
-  const { offers, requests, acceptedRequests, isLoading, refresh, applyAcceptedRequest, removeAcceptedRequest } =
+  const { offers, requests, acceptedRequests, isLoading, refresh } =
     useExpertPanelData();
-  const { refreshProfile, hydrateProfile, profile } = useExpertProfile();
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
   const [reassigning, setReassigning] = useState(false);
   const [reassignError, setReassignError] = useState<string | null>(null);
-  /** Only set after Accept fails because another expert took the request. */
   const [unavailable, setUnavailable] = useState(false);
-  const [justAccepted, setJustAccepted] = useState(false);
-  // Keep the request visible even if a background queue refresh drops the offer.
-  const requestSnapshotRef = useRef<BackendRequest | null>(null);
-  const offerIdSnapshotRef = useRef<string | undefined>(offerId);
+  /** After a successful Accept — keeps the evaluation form open. */
+  const [accepted, setAccepted] = useState(false);
+  const [showAcceptedToast, setShowAcceptedToast] = useState(false);
 
-  const liveRequest = useMemo(
+  const request = useMemo(
     () =>
       requests.find((r) => normalizeMongoId(r._id) === requestId) ??
       acceptedRequests.find((r) => normalizeMongoId(r._id) === requestId) ??
       offers.find((o) => normalizeMongoId(o.request._id) === requestId)?.request,
     [requests, acceptedRequests, offers, requestId],
   );
-
-  useEffect(() => {
-    if (liveRequest) {
-      requestSnapshotRef.current = liveRequest;
-    }
-  }, [liveRequest]);
-
-  const request = liveRequest ?? requestSnapshotRef.current;
 
   const matchedOffer = useMemo(() => {
     const byOfferId = offerId
@@ -76,98 +61,70 @@ export function ExpertQueueRequestPageClient({
   const matchedOfferId = matchedOffer
     ? normalizeMongoId(matchedOffer._id)
     : undefined;
-
-  useEffect(() => {
-    if (matchedOfferId) {
-      offerIdSnapshotRef.current = matchedOfferId;
-    } else if (offerId) {
-      offerIdSnapshotRef.current = offerId;
-    }
-  }, [matchedOfferId, offerId]);
-
-  // Prefer live offer match; keep URL / snapshotted offerId after list refresh
-  // or accept so Accept / reassign can still call the API.
-  const actionOfferId =
-    matchedOfferId ?? offerIdSnapshotRef.current ?? offerId;
+  // Prefer live offer match; keep URL offerId after accept so reassign can still call skip.
+  const actionOfferId = matchedOfferId ?? offerId;
 
   const detail = useMemo<EvaluationRequestDetail | null>(() => {
     if (!request) return null;
 
+    const isOffered = request.status === "offered";
+    const lostOffer = isOffered && !actionOfferId && !accepted;
+
+    // Once accepted on this screen, force accepted status so the form opens
+    // even if refresh is still catching up.
     const requestForView =
-      justAccepted && request.status === "offered"
+      accepted || request.status === "accepted"
         ? { ...request, status: "accepted" as const }
         : request;
 
     return buildEvaluationDetail({
       request: requestForView,
       offerId: actionOfferId,
-      // Never mark unavailable from a missing offer in the list — only after
-      // the user attempts Accept and the API says it was taken.
-      unavailable,
+      unavailable: unavailable || lostOffer,
     });
-  }, [request, actionOfferId, unavailable, justAccepted]);
+  }, [request, actionOfferId, unavailable, accepted]);
 
-  const markTakenByAnotherExpert = useCallback(() => {
-    setUnavailable(true);
-    setAcceptError(null);
-  }, []);
+  // Already accepted on the server → open evaluation form.
+  useEffect(() => {
+    if (request?.status === "accepted") {
+      setAccepted(true);
+      setUnavailable(false);
+    }
+  }, [request?.status]);
 
   const handleAccept = useCallback(async () => {
-    if (accepting) return;
+    if (!actionOfferId || accepting) return;
 
     setAccepting(true);
     setAcceptError(null);
     setReassignError(null);
     try {
-      let offerToAccept = actionOfferId;
-
-      // If the local offer list went stale, refresh once then retry lookup.
-      if (!offerToAccept) {
-        await refresh({ silent: true });
-        offerToAccept = offerIdSnapshotRef.current ?? offerId;
-      }
-
-      if (!offerToAccept) {
-        markTakenByAnotherExpert();
-        return;
-      }
-
       console.log("[expert] accepting offer", {
-        offerId: offerToAccept,
+        offerId: actionOfferId,
         requestId,
       });
-      const accepted = await acceptOffer(offerToAccept);
-      applyAcceptedRequest(accepted.request, offerToAccept);
-      setJustAccepted(true);
-      void refreshProfile({ silent: true });
-      void refresh({ silent: true });
+      await acceptOffer(actionOfferId);
+      setAccepted(true);
+      setShowAcceptedToast(true);
+      setUnavailable(false);
+      await refresh();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Unable to accept offer.";
       const status = err instanceof ExpertOffersError ? err.status : 0;
+      // Only mark unavailable when another expert truly took it — not workload limits.
       if (
-        status === 409 ||
-        status === 404 ||
-        /already|unavailable|expired|not found|assigned|taken/i.test(message)
+        (status === 409 || status === 404) &&
+        /already|unavailable|expired|not found|taken|another/i.test(message) &&
+        !/workload\s*limit/i.test(message)
       ) {
-        markTakenByAnotherExpert();
-        void refresh({ silent: true });
-        return;
+        setUnavailable(true);
       }
       setAcceptError(message);
     } finally {
       setAccepting(false);
     }
-  }, [
-    actionOfferId,
-    accepting,
-    offerId,
-    requestId,
-    refresh,
-    refreshProfile,
-    applyAcceptedRequest,
-    markTakenByAnotherExpert,
-  ]);
+  }, [actionOfferId, accepting, requestId, refresh]);
 
   const handleReassign = useCallback(async () => {
     if (!actionOfferId || reassigning) return;
@@ -186,7 +143,7 @@ export function ExpertQueueRequestPageClient({
       });
       await skipOffer(actionOfferId);
       clearEvaluationDraft(requestId);
-      await refresh({ silent: true });
+      await refresh();
       router.push("/expert/queue");
     } catch (err) {
       const status = err instanceof ExpertOffersError ? err.status : 0;
@@ -204,7 +161,7 @@ export function ExpertQueueRequestPageClient({
     }
   }, [actionOfferId, reassigning, requestId, refresh, router]);
 
-  if (isLoading && !request) {
+  if (isLoading) {
     return <ExpertRequestDetailSkeleton />;
   }
 
@@ -233,28 +190,12 @@ export function ExpertQueueRequestPageClient({
       acceptError={acceptError}
       reassigning={reassigning}
       reassignError={reassignError}
-      showAcceptedToast={justAccepted}
+      showAcceptedToast={showAcceptedToast}
       onAccept={handleAccept}
       onReassign={handleReassign}
-      onDismissToast={() => setJustAccepted(false)}
+      onDismissToast={() => setShowAcceptedToast(false)}
       onSubmitted={async () => {
-        removeAcceptedRequest(requestId);
-        if (profile) {
-          hydrateProfile({
-            ...profile,
-            activeCommittedRequestCount: Math.max(
-              0,
-              profile.activeCommittedRequestCount - 1,
-            ),
-            stats: {
-              ...profile.stats,
-              activeCases: Math.max(0, profile.stats.activeCases - 1),
-              completed: profile.stats.completed + 1,
-            },
-          });
-        }
-        void refreshProfile({ silent: true });
-        await refresh({ silent: true });
+        await refresh();
         router.push("/expert/history");
       }}
     />

@@ -14,6 +14,7 @@ import {
   saveEvaluationDraft,
 } from "@/lib/expert/evaluationDraftStorage";
 import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn, isDeadlineExceeded, normalizeMongoId } from "@/lib/expert/format";
+import { DEADLINE_EXCEEDED_TOAST_KEY } from "@/lib/expert/constants";
 import {
   ExpertReportsError,
   getReportByRequestId,
@@ -1045,7 +1046,14 @@ export function ExpertEvaluationRequestView({
 
       <ExpertDeadlineExceededModal
         open={deadlineExceeded}
-        onGoBack={() => router.push("/expert/queue")}
+        onGoBack={() => {
+          try {
+            sessionStorage.setItem(DEADLINE_EXCEEDED_TOAST_KEY, "1");
+          } catch {
+            /* ignore */
+          }
+          router.push("/expert/drafts");
+        }}
       />
 
       {showAcceptedToast ? <AcceptedToast onDismiss={onDismissToast} /> : null}

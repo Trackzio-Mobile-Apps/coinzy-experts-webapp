@@ -12,11 +12,7 @@ type ExpertDashboardSectionProps = {
 
 export function ExpertDashboardSection({ children }: ExpertDashboardSectionProps) {
   const { profile } = useExpertProfile();
-  const {
-    offers,
-    acceptedRequests,
-    isLoading: panelLoading,
-  } = useExpertPanelData();
+  const { offers, isLoading: panelLoading } = useExpertPanelData();
 
   if (!profile) return null;
 
@@ -27,11 +23,7 @@ export function ExpertDashboardSection({ children }: ExpertDashboardSectionProps
       <ExpertDashboardHeader
         greeting={greeting}
         stats={{
-          // Live from accepted requests once panel data is available.
-          activeCases:
-            panelLoading && acceptedRequests.length === 0
-              ? profile.activeCommittedRequestCount
-              : acceptedRequests.length,
+          activeCases: profile.activeCommittedRequestCount,
           newRequests: offers.length,
           completed: profile.stats.completed,
           avgTurnaround: formatAvgTurnaround(profile.stats.avgCompletionHours),

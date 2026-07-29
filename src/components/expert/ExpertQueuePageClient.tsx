@@ -1,32 +1,18 @@
 "use client";
 
-import { ExpertAvailabilityPromptModal } from "@/components/expert/ExpertAvailabilityPromptModal";
 import { ExpertDashboardSection } from "@/components/expert/ExpertDashboardSection";
 import { ExpertQueuePageBody } from "@/components/expert/ExpertQueuePageBody";
 import { ExpertToast } from "@/components/expert/ExpertToast";
-import {
-  QUEUE_AUTO_REFRESH_MS,
-  QUEUE_PAGE_SIZE,
-} from "@/lib/expert/constants";
-import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
-import { useExpertProfile } from "@/lib/expert/expertProfileStore";
-import {
-  ExpertProfileError,
-  updateMyAvailability,
-} from "@/lib/expert/profileService";
+import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
 import { buildQueueList } from "@/lib/expert/requestMappers";
+import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function ExpertQueuePageClient() {
   const searchParams = useSearchParams();
-  const { offers, acceptedRequests, isLoading, error, refresh } =
-    useExpertPanelData();
-  const { profile, isInitialized, hydrateProfile } = useExpertProfile();
+  const { offers, acceptedRequests, isLoading, error } = useExpertPanelData();
   const [showLoginToast, setShowLoginToast] = useState(false);
-  const [showAvailabilityPrompt, setShowAvailabilityPrompt] = useState(false);
-  const [isMakingAvailable, setIsMakingAvailable] = useState(false);
-  const shouldCheckAvailabilityAfterLogin = useRef(false);
 
   useEffect(() => {
     if (
@@ -35,79 +21,13 @@ export function ExpertQueuePageClient() {
       return;
     }
     window.sessionStorage.removeItem("coinzy_expert_login_success");
-    shouldCheckAvailabilityAfterLogin.current = true;
     const showTimer = window.setTimeout(() => {
       setShowLoginToast(true);
     }, 0);
     return () => window.clearTimeout(showTimer);
   }, []);
 
-  useEffect(() => {
-    if (!shouldCheckAvailabilityAfterLogin.current) return;
-    if (!isInitialized || !profile) return;
-
-    shouldCheckAvailabilityAfterLogin.current = false;
-    if (!profile.isAvailableForRequests) {
-      setShowAvailabilityPrompt(true);
-    }
-  }, [isInitialized, profile]);
-
-  // Keep the home queue fresh while this page is open / visible.
-  useEffect(() => {
-    const silentRefresh = () => {
-      if (document.visibilityState === "hidden") return;
-      void refresh({ silent: true });
-    };
-
-    const intervalId = window.setInterval(
-      silentRefresh,
-      QUEUE_AUTO_REFRESH_MS,
-    );
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        void refresh({ silent: true });
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-    };
-  }, [refresh]);
-
   const closeLoginToast = useCallback(() => setShowLoginToast(false), []);
-
-  const dismissAvailabilityPrompt = useCallback(() => {
-    if (isMakingAvailable) return;
-    setShowAvailabilityPrompt(false);
-  }, [isMakingAvailable]);
-
-  const makeAvailable = useCallback(async () => {
-    if (isMakingAvailable) return;
-    setIsMakingAvailable(true);
-    try {
-      const updated = await updateMyAvailability(true);
-      hydrateProfile(updated);
-      setShowAvailabilityPrompt(false);
-    } catch (err) {
-      if (err instanceof ExpertProfileError && err.code === "unauthorized") {
-        setShowAvailabilityPrompt(false);
-        return;
-      }
-      window.alert(
-        err instanceof Error
-          ? err.message
-          : "Unable to update availability. Please try again.",
-      );
-    } finally {
-      setIsMakingAvailable(false);
-    }
-  }, [hydrateProfile, isMakingAvailable]);
 
   const allItems = useMemo(
     () => buildQueueList(offers, acceptedRequests),
@@ -141,14 +61,6 @@ export function ExpertQueuePageClient() {
         open={showLoginToast}
         message="Login successful"
         onClose={closeLoginToast}
-      />
-      <ExpertAvailabilityPromptModal
-        open={showAvailabilityPrompt}
-        isSaving={isMakingAvailable}
-        onStayUnavailable={dismissAvailabilityPrompt}
-        onMakeAvailable={() => {
-          void makeAvailable();
-        }}
       />
     </ExpertDashboardSection>
   );
