@@ -5,7 +5,10 @@ import {
   createInitialEvaluationFormState,
   evaluateFormProgress,
   EVALUATION_FORM_SECTIONS,
+  getMissingRequiredFields,
+  getSectionProgress,
   getSectionStepState,
+  normalizeEvaluationFormState,
   type SectionStepState,
 } from "@/lib/expert/evaluationForm";
 import {
@@ -58,17 +61,34 @@ function FieldBlock({
   id,
   children,
   className = "",
+  required = false,
+  description,
 }: {
   label: string;
   id: string;
   children: ReactNode;
   className?: string;
+  required?: boolean;
+  description?: string;
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <label htmlFor={id} className={labelClass}>
         {label}
+        {required ? (
+          <span className="text-expert-error" aria-hidden>
+            {" "}
+            *
+          </span>
+        ) : (
+          <span className="ml-1 font-normal normal-case tracking-normal text-text-muted">
+            (optional)
+          </span>
+        )}
       </label>
+      {description ? (
+        <p className="text-xs leading-relaxed text-text-muted">{description}</p>
+      ) : null}
       {children}
     </div>
   );
@@ -549,9 +569,9 @@ export function ExpertEvaluationRequestView({
   const router = useRouter();
   const formId = "expert-evaluation-form";
   const [form, setForm] = useState<EvaluationFormState>(() => {
-    return (
-      loadEvaluationDraft(detail.requestId) ??
-      createInitialEvaluationFormState()
+    const local = loadEvaluationDraft(detail.requestId);
+    return normalizeEvaluationFormState(
+      local ?? createInitialEvaluationFormState(),
     );
   });
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -615,8 +635,9 @@ export function ExpertEvaluationRequestView({
             ? evaluateFormProgress(localForm).filled
             : 0;
           // Prefer whichever side has more filled fields.
-          const nextForm =
-            localFilled > serverFilled && localForm ? localForm : serverForm;
+          const nextForm = normalizeEvaluationFormState(
+            localFilled > serverFilled && localForm ? localForm : serverForm,
+          );
           setForm(nextForm);
           saveEvaluationDraft(detail.requestId, nextForm);
           setDraftReportId(normalizeMongoId(report._id) || null);
@@ -748,6 +769,14 @@ export function ExpertEvaluationRequestView({
     if (isDeadlineExceeded(detail.deadlineAt)) {
       setSubmitError(
         "The allocated time for this evaluation has expired. This request can no longer be submitted.",
+      );
+      return;
+    }
+
+    const missing = getMissingRequiredFields(form);
+    if (missing.length > 0) {
+      setSubmitError(
+        `Please fill all mandatory fields before submitting: ${missing.join(", ")}.`,
       );
       return;
     }
@@ -926,16 +955,18 @@ export function ExpertEvaluationRequestView({
                     Evaluation form
                   </h2>
                   <p className="mt-1 text-sm text-text-muted">
-                    Complete each section below, then submit your report.
+                    Fields marked with * are mandatory. Optional fields can be
+                    left blank.
                   </p>
                 </div>
 
                 <div className="space-y-6 px-4 py-5 sm:space-y-8 sm:px-5">
                   {EVALUATION_FORM_SECTIONS.map((section, si) => {
                     const sectionState = getSectionStepState(form, section.id);
-                    const filled = section.fields.filter(
-                      (field) => (form[field.key] ?? "").trim().length > 0,
-                    ).length;
+                    const { filled, total } = getSectionProgress(
+                      form,
+                      section.id,
+                    );
 
                     return (
                       <section
@@ -967,7 +998,7 @@ export function ExpertEvaluationRequestView({
                             {sectionState === "complete"
                               ? "Completed"
                               : sectionState === "in_progress"
-                                ? `${filled} of ${section.fields.length} fields filled`
+                                ? `${filled} of ${total} required filled`
                                 : "Not started"}
                           </span>
                         </div>
@@ -975,11 +1006,14 @@ export function ExpertEvaluationRequestView({
                         <div className="mt-5 grid gap-4 sm:grid-cols-2">
                           {section.fields.map((field) => {
                             const id = `${section.id}-${field.key}`;
+                            const isRequired = Boolean(field.required);
                             return (
                               <FieldBlock
                                 key={field.key}
                                 label={field.label}
                                 id={id}
+                                required={isRequired}
+                                description={field.description}
                                 className={
                                   field.multiline ? "sm:col-span-2" : undefined
                                 }
@@ -989,25 +1023,29 @@ export function ExpertEvaluationRequestView({
                                     id={id}
                                     name={field.key}
                                     rows={4}
+                                    required={isRequired}
+                                    aria-required={isRequired}
                                     value={form[field.key] ?? ""}
                                     onChange={(e) =>
                                       setField(field.key, e.target.value)
                                     }
                                     className={`${inputClass} min-h-[6rem] resize-y`}
-                                    placeholder="—"
+                                    placeholder={field.description ?? "—"}
                                   />
                                 ) : (
                                   <input
                                     id={id}
                                     name={field.key}
                                     type="text"
+                                    required={isRequired}
+                                    aria-required={isRequired}
                                     inputMode={field.inputMode ?? "text"}
                                     value={form[field.key] ?? ""}
                                     onChange={(e) =>
                                       setField(field.key, e.target.value)
                                     }
                                     className={inputClass}
-                                    placeholder="—"
+                                    placeholder={field.description ?? "—"}
                                   />
                                 )}
                               </FieldBlock>

@@ -226,8 +226,11 @@ export type EvaluationRequestDetail = {
 export type EvaluationFormFieldDef = {
   key: string;
   label: string;
+  description?: string;
   multiline?: boolean;
   inputMode?: "decimal" | "numeric" | "text";
+  /** When true, required for progress % and submit. Defaults to false. */
+  required?: boolean;
 };
 
 export type EvaluationFormSectionDef = {
