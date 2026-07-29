@@ -1,11 +1,9 @@
 "use client";
 
 import { ExpertDraftsPageBody } from "@/components/expert/ExpertDraftsPageBody";
-import { ExpertToast } from "@/components/expert/ExpertToast";
-import { DEADLINE_EXCEEDED_TOAST_KEY } from "@/lib/expert/constants";
 import { evaluateFormProgress } from "@/lib/expert/evaluationForm";
 import { loadEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
-import { isDeadlineExceeded, normalizeMongoId } from "@/lib/expert/format";
+import { normalizeMongoId } from "@/lib/expert/format";
 import { mapRequestToDraftItem } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import {
@@ -14,28 +12,12 @@ import {
   reportProgressPercent,
 } from "@/lib/expert/reportsService";
 import type { DraftListItem } from "@/lib/expert/types";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export function ExpertDraftsPageClient() {
   const { acceptedRequests, isLoading, error } = useExpertPanelData();
   const [items, setItems] = useState<DraftListItem[]>([]);
   const [loadingDrafts, setLoadingDrafts] = useState(true);
-  const [showDeadlineToast, setShowDeadlineToast] = useState(false);
-
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem(DEADLINE_EXCEEDED_TOAST_KEY) === "1") {
-        sessionStorage.removeItem(DEADLINE_EXCEEDED_TOAST_KEY);
-        setShowDeadlineToast(true);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const closeDeadlineToast = useCallback(() => {
-    setShowDeadlineToast(false);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,9 +28,6 @@ export function ExpertDraftsPageClient() {
         const rows = await Promise.all(
           acceptedRequests.map(async (request) => {
             const requestId = normalizeMongoId(request._id);
-            // Past-deadline accepted requests belong in History, not Drafts.
-            if (isDeadlineExceeded(request.deadlineAt)) return null;
-
             const local = loadEvaluationDraft(requestId);
             const localProgress = local
               ? evaluateFormProgress(local).percent
@@ -56,16 +35,15 @@ export function ExpertDraftsPageClient() {
 
             try {
               const report = await getReportByRequestId(requestId);
-              // Submitted reports belong in History, not Drafts.
-              if (report && !isDraftReport(report)) return null;
+              if (!isDraftReport(report)) return null;
 
-              const serverProgress = report ? reportProgressPercent(report) : 0;
+              const serverProgress = reportProgressPercent(report);
               const progress = Math.max(serverProgress, localProgress);
-              // Show every accepted (in-progress) request, even at 0% — History
-              // already labels these as drafts after accept.
+              if (progress <= 0) return null;
               return mapRequestToDraftItem(request, progress);
             } catch {
-              // No server report yet — still an accepted draft.
+              // No server draft — still show if local autosave has content.
+              if (localProgress <= 0) return null;
               return mapRequestToDraftItem(request, localProgress);
             }
           }),
@@ -94,13 +72,6 @@ export function ExpertDraftsPageClient() {
       <ExpertDraftsPageBody
         items={items}
         isLoading={isLoading || loadingDrafts}
-      />
-      <ExpertToast
-        open={showDeadlineToast}
-        variant="info"
-        message="Evaluation time exceeded. Request moved to History."
-        onClose={closeDeadlineToast}
-        durationMs={5200}
       />
     </>
   );

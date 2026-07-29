@@ -364,9 +364,11 @@ export function buildEvaluationDetail(opts: {
 }): EvaluationRequestDetail {
   const parsed = parseRequestPayload(opts.request.payload);
   const unavailable = Boolean(opts.unavailable);
-  // Show Accept for any still-offered request. Missing offer id is resolved on
-  // Accept click (refresh / API), not by preemptively marking unavailable.
-  const needsAccept = !unavailable && opts.request.status === "offered";
+  // Show Accept while still offered and we have an offer id (Jul 24 behavior).
+  const needsAccept =
+    !unavailable &&
+    opts.request.status === "offered" &&
+    Boolean(opts.offerId);
   const canSubmit = opts.request.status === "accepted" && !unavailable;
 
   return {
