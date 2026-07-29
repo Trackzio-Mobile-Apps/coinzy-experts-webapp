@@ -375,8 +375,10 @@ export function ExpertPanelShell({
 
   if (isRequestDetail) {
     return (
-      <main className="h-screen overflow-y-auto bg-expert-dashboard-canvas px-4 py-5 sm:px-6 lg:overflow-hidden lg:px-10 lg:py-7">
-        {children}
+      <main className="flex h-dvh flex-col overflow-hidden bg-expert-dashboard-canvas px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
+        <div className="mx-auto flex min-h-0 w-full max-w-[96rem] flex-1 flex-col">
+          {children}
+        </div>
       </main>
     );
   }

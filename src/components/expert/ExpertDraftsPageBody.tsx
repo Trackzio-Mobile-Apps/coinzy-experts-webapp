@@ -1,5 +1,5 @@
 import type { DraftListItem } from "@/lib/expert/types";
-import { formatDeadlineRemaining, formatRequestId } from "@/lib/expert/format";
+import { formatDeadlineRemaining } from "@/lib/expert/format";
 import { ExpertEmptyState } from "@/components/expert/ExpertEmptyState";
 import { ExpertDraftsListSkeleton } from "@/components/expert/ExpertSkeleton";
 import Link from "next/link";
@@ -36,7 +36,7 @@ export function ExpertDraftsPageBody({
           Drafts
         </h2>
         <p className="mt-1 text-xs text-text-muted xl:text-base">
-          Evaluations you&apos;ve started but not yet submitted
+          Accepted evaluations waiting to be completed
         </p>
       </div>
 
@@ -90,7 +90,7 @@ export function ExpertDraftsPageBody({
                           </div>
                         </div>
                         <p className="font-mono text-base font-semibold text-text">
-                          REQ-ID {formatRequestId(row.id)}
+                          REQ-ID {row.displayId}
                         </p>
                         <div>
                           <div className="mb-1.5 flex items-center justify-between gap-3">

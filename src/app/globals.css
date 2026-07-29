@@ -57,6 +57,8 @@
   --color-expert-status-new-text: var(--coinzy-expert-status-new-text);
   --color-expert-status-done-bg: var(--coinzy-expert-status-done-bg);
   --color-expert-status-done-text: var(--coinzy-expert-status-done-text);
+  --color-expert-status-expired-bg: var(--coinzy-expert-status-expired-bg);
+  --color-expert-status-expired-text: var(--coinzy-expert-status-expired-text);
 
   --color-expert-queue-accent-blue: var(--coinzy-expert-queue-accent-blue);
   --color-expert-queue-accent-green: var(--coinzy-expert-queue-accent-green);

@@ -233,6 +233,7 @@ export function mapOfferToQueueItem(offer: BackendOffer): QueueListItem {
   );
   return {
     id: normalizeMongoId(request._id),
+    displayId: resolveDisplayId(request),
     offerId: normalizeMongoId(offer._id),
     submittedDisplay: formatSubmitted(request.createdAt),
     status: "pending_review",
@@ -248,6 +249,7 @@ export function mapAcceptedRequestToQueueItem(
   const deadlineAt = normalizeIsoDate(request.deadlineAt);
   return {
     id: normalizeMongoId(request._id),
+    displayId: resolveDisplayId(request),
     submittedDisplay: formatSubmitted(request.acceptedAt ?? request.createdAt),
     status: "in_progress",
     deadlineDays: daysUntil(deadlineAt),
@@ -263,6 +265,7 @@ export function mapRequestToDraftItem(
   const deadlineAt = normalizeIsoDate(request.deadlineAt);
   return {
     id: normalizeMongoId(request._id),
+    displayId: resolveDisplayId(request),
     submittedDisplay: formatSubmitted(request.acceptedAt ?? request.createdAt),
     deadlineDays: daysUntil(deadlineAt),
     deadlineAt,
@@ -272,7 +275,13 @@ export function mapRequestToDraftItem(
 
 function historyStatusForRequest(status: string): HistoryRowStatus {
   if (status === "completed" || status === "report_submitted") return "completed";
-  if (status === "deadline_missed") return "missed";
+  if (
+    status === "deadline_missed" ||
+    status === "expired" ||
+    status === "cancelled"
+  ) {
+    return "missed";
+  }
   if (status === "accepted") return "draft";
   if (status === "offered") return "new";
   return "new";
@@ -284,6 +293,13 @@ function historyActionForRequest(status: string): HistoryAction {
   }
   if (status === "accepted") return "resume";
   if (status === "offered") return "evaluate";
+  if (
+    status === "deadline_missed" ||
+    status === "expired" ||
+    status === "cancelled"
+  ) {
+    return "view_details";
+  }
   return "none";
 }
 
@@ -348,10 +364,9 @@ export function buildEvaluationDetail(opts: {
 }): EvaluationRequestDetail {
   const parsed = parseRequestPayload(opts.request.payload);
   const unavailable = Boolean(opts.unavailable);
-  const needsAccept =
-    !unavailable &&
-    opts.request.status === "offered" &&
-    Boolean(opts.offerId);
+  // Show Accept for any still-offered request. Missing offer id is resolved on
+  // Accept click (refresh / API), not by preemptively marking unavailable.
+  const needsAccept = !unavailable && opts.request.status === "offered";
   const canSubmit = opts.request.status === "accepted" && !unavailable;
 
   return {

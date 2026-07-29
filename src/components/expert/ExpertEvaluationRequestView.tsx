@@ -173,8 +173,8 @@ function MediaAndNotes({
   const grouped = useMemo(() => groupMedia(detail.media), [detail.media]);
 
   return (
-    <aside className="space-y-4 self-start">
-      <section className="rounded-xl border border-border/70 bg-surface p-4 shadow-sm">
+    <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain lg:h-full">
+      <section className="shrink-0 rounded-xl border border-border/70 bg-surface p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className={labelClass}>Coin images & videos</h2>
           {detail.media.length > 0 ? (
@@ -262,7 +262,7 @@ function MediaAndNotes({
         )}
       </section>
 
-      <section className="rounded-xl border border-border/70 bg-surface px-4 py-3.5 shadow-sm">
+      <section className="shrink-0 rounded-xl border border-border/70 bg-surface px-4 py-3.5 shadow-sm">
         <h2 className={labelClass}>User&apos;s notes</h2>
         <p className="mt-2 text-sm leading-relaxed text-text">
           {detail.userNotes}
@@ -504,9 +504,7 @@ function AcceptPanel({
 
 function RequestPageFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto flex h-full w-full max-w-[96rem] min-h-0 flex-col">
-      {children}
-    </div>
+    <div className="flex min-h-0 flex-1 flex-col">{children}</div>
   );
 }
 
@@ -789,43 +787,45 @@ export function ExpertEvaluationRequestView({
           submitDisabled
         />
 
-        <div className="grid gap-5 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start lg:gap-5">
-          <MediaAndNotes detail={detail} onOpen={setLightbox} />
-          <div className="rounded-xl border border-border/70 bg-surface p-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-text">
-                  Ready to evaluate?
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed text-text-muted">
-                  Begin the evaluation to access the form, review the images,
-                  and complete the report.
-                </p>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="grid gap-5 pb-2 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start lg:gap-5">
+            <MediaAndNotes detail={detail} onOpen={setLightbox} />
+            <div className="rounded-xl border border-border/70 bg-surface p-5 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-text">
+                    Ready to evaluate?
+                  </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-text-muted">
+                    Begin the evaluation to access the form, review the images,
+                    and complete the report.
+                  </p>
+                </div>
+                <Link
+                  href="/expert/queue"
+                  className="inline-flex shrink-0 items-center justify-center rounded-lg border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
+                >
+                  Back to Queue
+                </Link>
               </div>
-              <Link
-                href="/expert/queue"
-                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
-              >
-                Back to Queue
-              </Link>
-            </div>
 
-            <div
-              role="status"
-              className="mt-4 flex gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"
-            >
-              <span
-                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-800 text-xs font-bold"
-                aria-hidden
+              <div
+                role="status"
+                className="mt-4 flex gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"
               >
-                i
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Request unavailable</p>
-                <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
-                  Another expert has already accepted this request. Please
-                  return to the queue to pick a different one.
-                </p>
+                <span
+                  className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-800 text-xs font-bold"
+                  aria-hidden
+                >
+                  i
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">Request unavailable</p>
+                  <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
+                    Another expert has already accepted this request. Please
+                    return to the queue to pick a different one.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -854,18 +854,20 @@ export function ExpertEvaluationRequestView({
           submitDisabled
         />
 
-        <div className="grid gap-5 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start lg:gap-5">
-          <MediaAndNotes detail={detail} onOpen={setLightbox} />
-          <AcceptPanel
-            accepting={accepting}
-            acceptDisabled={false}
-            acceptError={acceptError}
-            reassigning={reassigning}
-            reassignDisabled={reassignDisabled}
-            reassignError={reassignError}
-            onAccept={onAccept}
-            onReassign={onReassign}
-          />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="grid gap-5 pb-2 lg:grid-cols-[21rem_minmax(0,1fr)] lg:items-start lg:gap-5">
+            <MediaAndNotes detail={detail} onOpen={setLightbox} />
+            <AcceptPanel
+              accepting={accepting}
+              acceptDisabled={false}
+              acceptError={acceptError}
+              reassigning={reassigning}
+              reassignDisabled={reassignDisabled}
+              reassignError={reassignError}
+              onAccept={onAccept}
+              onReassign={onReassign}
+            />
+          </div>
         </div>
 
         {lightbox != null ? (
@@ -882,7 +884,7 @@ export function ExpertEvaluationRequestView({
 
   // Accepted / in progress — evaluation form.
   return (
-    <div className="h-full min-h-0">
+    <>
       <RequestPageFrame>
         <RequestHeader
           detail={detail}
@@ -894,10 +896,10 @@ export function ExpertEvaluationRequestView({
           onReassign={onReassign}
         />
 
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[20rem_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
           <MediaAndNotes detail={detail} onOpen={setLightbox} />
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain pe-1">
             <EvaluationProgressStepper form={form} />
 
             {reassignError ? (
@@ -912,19 +914,22 @@ export function ExpertEvaluationRequestView({
               </p>
             ) : null}
 
-            <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-surface shadow-sm">
+            <div className="min-w-0 flex-1 rounded-xl border border-border/70 bg-surface shadow-sm">
               <form
                 id={formId}
-                className="flex h-full min-h-0 flex-col"
+                className="flex flex-col"
                 onSubmit={handleSubmit}
               >
                 <div className="shrink-0 border-b border-border/60 px-4 py-4 sm:px-5">
                   <h2 className="text-xl font-semibold tracking-tight text-text">
                     Evaluation form
                   </h2>
+                  <p className="mt-1 text-sm text-text-muted">
+                    Complete each section below, then submit your report.
+                  </p>
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-4 py-5 sm:px-5">
+                <div className="space-y-6 px-4 py-5 sm:space-y-8 sm:px-5">
                   {EVALUATION_FORM_SECTIONS.map((section, si) => {
                     const sectionState = getSectionStepState(form, section.id);
                     const filled = section.fields.filter(
@@ -1013,7 +1018,7 @@ export function ExpertEvaluationRequestView({
                   })}
                 </div>
 
-                <div className="flex shrink-0 items-center justify-between gap-4 border-t border-border/70 bg-surface px-4 py-3 sm:px-5">
+                <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-between gap-4 border-t border-border/70 bg-surface/95 px-4 py-3 backdrop-blur-sm sm:px-5">
                   <span className="text-xs font-medium text-text-muted">
                     {draftSaveState === "saving"
                       ? "Saving draft…"
@@ -1053,6 +1058,6 @@ export function ExpertEvaluationRequestView({
           onIndexChange={setLightbox}
         />
       ) : null}
-    </div>
+    </>
   );
 }

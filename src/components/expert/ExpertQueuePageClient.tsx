@@ -4,7 +4,10 @@ import { ExpertAvailabilityPromptModal } from "@/components/expert/ExpertAvailab
 import { ExpertDashboardSection } from "@/components/expert/ExpertDashboardSection";
 import { ExpertQueuePageBody } from "@/components/expert/ExpertQueuePageBody";
 import { ExpertToast } from "@/components/expert/ExpertToast";
-import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
+import {
+  QUEUE_AUTO_REFRESH_MS,
+  QUEUE_PAGE_SIZE,
+} from "@/lib/expert/constants";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import {
@@ -17,7 +20,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function ExpertQueuePageClient() {
   const searchParams = useSearchParams();
-  const { offers, acceptedRequests, isLoading, error } = useExpertPanelData();
+  const { offers, acceptedRequests, isLoading, error, refresh } =
+    useExpertPanelData();
   const { profile, isInitialized, hydrateProfile } = useExpertProfile();
   const [showLoginToast, setShowLoginToast] = useState(false);
   const [showAvailabilityPrompt, setShowAvailabilityPrompt] = useState(false);
@@ -47,6 +51,34 @@ export function ExpertQueuePageClient() {
       setShowAvailabilityPrompt(true);
     }
   }, [isInitialized, profile]);
+
+  // Keep the home queue fresh while this page is open / visible.
+  useEffect(() => {
+    const silentRefresh = () => {
+      if (document.visibilityState === "hidden") return;
+      void refresh({ silent: true });
+    };
+
+    const intervalId = window.setInterval(
+      silentRefresh,
+      QUEUE_AUTO_REFRESH_MS,
+    );
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refresh({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [refresh]);
 
   const closeLoginToast = useCallback(() => setShowLoginToast(false), []);
 

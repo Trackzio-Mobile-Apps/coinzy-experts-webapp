@@ -65,6 +65,8 @@
   --coinzy-expert-status-new-text: #a16207;
   --coinzy-expert-status-done-bg: #ecfdf5;
   --coinzy-expert-status-done-text: #15803d;
+  --coinzy-expert-status-expired-bg: #fff1eb;
+  --coinzy-expert-status-expired-text: #c2410c;
 
   /* ── Expert error / alerts ────────────────────────────────────── */
   --coinzy-expert-error: #dc2626;

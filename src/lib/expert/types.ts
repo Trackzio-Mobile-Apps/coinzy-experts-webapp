@@ -142,6 +142,8 @@ export type QueueItemStatus = "in_progress" | "pending_review";
 
 export type QueueListItem = {
   id: string;
+  /** Human-readable id shown in UI (API displayId when present). */
+  displayId: string;
   offerId?: string;
   submittedDisplay: string;
   status: QueueItemStatus;
@@ -153,6 +155,8 @@ export type QueueListItem = {
 
 export type DraftListItem = {
   id: string;
+  /** Human-readable id shown in UI (API displayId when present). */
+  displayId: string;
   submittedDisplay: string;
   deadlineDays: number;
   /** ISO deadline used for precise remaining-time labels. */
@@ -162,7 +166,12 @@ export type DraftListItem = {
 
 export type HistoryRowStatus = "draft" | "new" | "completed" | "missed";
 
-export type HistoryAction = "resume" | "evaluate" | "view_report" | "none";
+export type HistoryAction =
+  | "resume"
+  | "evaluate"
+  | "view_report"
+  | "view_details"
+  | "none";
 
 export type HistoryRow = {
   requestId: string;
@@ -240,6 +249,5 @@ export type ExpertDashboardStats = {
   activeCases: number;
   newRequests: number;
   completed: number;
-  totalEarningsInr: number;
   avgTurnaround?: string;
 };

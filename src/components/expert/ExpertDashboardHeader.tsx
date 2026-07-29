@@ -1,5 +1,4 @@
 import type { ExpertDashboardStats } from "@/lib/expert/types";
-import { formatInr } from "@/lib/expert/format";
 import {
   ExpertStatCardsSkeleton,
   SkeletonBone,
@@ -40,9 +39,9 @@ export function ExpertDashboardHeader({
       </div>
 
       {isLoading ? (
-        <ExpertStatCardsSkeleton count={4} />
+        <ExpertStatCardsSkeleton count={3} columns={3} compact />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+        <div className="flex flex-col gap-6 sm:flex-row sm:flex-wrap">
           <ExpertStatCard
             highlighted
             label="Active cases"
@@ -59,16 +58,8 @@ export function ExpertDashboardHeader({
             value={s.completed}
             hint="All time"
           />
-          <ExpertStatCard
-            label="Total earnings"
-            value={formatInr(s.totalEarningsInr)}
-            hint="All time"
-          />
         </div>
       )}
     </header>
   );
 }
-
-// Keep formatInr exported for history/profile consumers
-export { formatInr };

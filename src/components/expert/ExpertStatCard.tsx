@@ -7,6 +7,7 @@ type ExpertStatCardProps = {
   highlighted?: boolean;
 };
 
+/** Figma: 249×116, label / value / hint stacked with space-between */
 export function ExpertStatCard({
   label,
   value,
@@ -17,26 +18,26 @@ export function ExpertStatCard({
     <article
       className={
         highlighted
-          ? "flex min-h-28 flex-col justify-between rounded-xl border border-primary/10 bg-[#9b6566] px-5 py-4 text-white shadow-sm xl:min-h-[9.5rem] xl:px-6 xl:py-5"
-          : "flex min-h-28 flex-col justify-between rounded-xl border border-border/80 bg-surface px-5 py-4 shadow-sm xl:min-h-[9.5rem] xl:px-6 xl:py-5"
+          ? "flex h-[116px] w-full flex-col justify-between rounded-xl border border-primary/10 bg-[#9b6566] px-5 py-4 text-white shadow-sm sm:w-[249px] sm:shrink-0"
+          : "flex h-[116px] w-full flex-col justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-sm sm:w-[249px] sm:shrink-0"
       }
     >
       <p
-        className={`text-xs font-medium uppercase tracking-wide ${
+        className={`text-[11px] font-medium uppercase tracking-[0.06em] ${
           highlighted ? "text-white/80" : "text-text-muted"
         }`}
       >
         {label}
       </p>
       <p
-        className={`text-3xl font-semibold leading-none tabular-nums xl:text-4xl ${
+        className={`truncate text-[30px] font-semibold leading-none tracking-tight tabular-nums ${
           highlighted ? "text-white" : "text-text"
         }`}
       >
         {value}
       </p>
       <p
-        className={`text-xs xl:text-sm ${
+        className={`truncate text-xs leading-4 ${
           highlighted ? "text-white/75" : "text-text-muted"
         }`}
       >

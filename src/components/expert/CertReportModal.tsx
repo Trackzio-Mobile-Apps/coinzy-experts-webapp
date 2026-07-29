@@ -189,7 +189,7 @@ export function CertReportModal({
             disabled={!report || loading}
             className="rounded-lg border border-border bg-surface px-3 py-2 text-xs font-semibold text-text transition-colors hover:bg-input-bg disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
           >
-            Download
+            Download HTML
           </button>
           <button
             type="button"
@@ -290,8 +290,8 @@ export function CertReportModal({
                 Request {report.requestId}
               </p>
               <p className="mt-1 text-center text-[11px] text-text-muted">
-                Use Save as PDF to print this certificate, or Download for an
-                HTML file you can open and print.
+                Use Save as PDF to open the print dialog, or Download HTML for an
+                offline file you can open later.
               </p>
             </div>
           ) : null}
