@@ -21,26 +21,35 @@ export function SkeletonBone({
 export function ExpertStatCardsSkeleton({
   count = 4,
   columns = 4,
+  compact = false,
 }: {
   count?: number;
   columns?: 3 | 4;
+  /** History summary cards — Figma 249×116 */
+  compact?: boolean;
 }) {
   return (
     <div
       className={
-        columns === 3
-          ? "grid grid-cols-1 gap-4 sm:grid-cols-3"
-          : "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        compact
+          ? "flex flex-col gap-6 sm:flex-row sm:flex-wrap"
+          : columns === 3
+            ? "grid grid-cols-1 gap-4 sm:grid-cols-3"
+            : "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       }
     >
       {Array.from({ length: count }, (_, index) => (
         <div
           key={index}
-          className="min-h-28 rounded-xl border border-border/80 bg-surface px-5 py-4 shadow-sm xl:min-h-[9.5rem] xl:px-6 xl:py-5"
+          className={
+            compact
+              ? "flex h-[116px] w-full flex-col justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-sm sm:w-[249px] sm:shrink-0"
+              : "min-h-28 rounded-xl border border-border/80 bg-surface px-5 py-4 shadow-sm xl:min-h-[9.5rem] xl:px-6 xl:py-5"
+          }
         >
           <SkeletonBone className="h-3 w-24" />
-          <SkeletonBone className="mt-3 h-8 w-16" />
-          <SkeletonBone className="mt-3 h-3 w-28" />
+          <SkeletonBone className={compact ? "h-8 w-16" : "mt-3 h-8 w-16"} />
+          <SkeletonBone className={compact ? "h-3 w-28" : "mt-3 h-3 w-28"} />
         </div>
       ))}
     </div>

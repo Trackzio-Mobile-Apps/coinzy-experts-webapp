@@ -9,7 +9,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
     stepLabel: "General",
     title: "General information",
     fields: [
-      { key: "nameDesignation", label: "Name designation" },
+      { key: "nameDesignation", label: "Name/Designation" },
       { key: "issuer", label: "Issuer" },
       { key: "periodReign", label: "Period / reign" },
       { key: "yearOfMinting", label: "Year of minting" },

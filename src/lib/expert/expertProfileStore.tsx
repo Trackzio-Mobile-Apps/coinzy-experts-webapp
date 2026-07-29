@@ -36,7 +36,7 @@ type ExpertProfileContextValue = ExpertProfileState & {
   /** Hydrate store from a profile object (e.g. after `getMyProfile`). */
   hydrateProfile: (profile: ExpertProfile) => void;
   /** Fetch `/experts/me` and update global state. */
-  refreshProfile: () => Promise<ExpertProfile | null>;
+  refreshProfile: (options?: { silent?: boolean }) => Promise<ExpertProfile | null>;
   /** On app load: fetch profile when a token exists. */
   initialize: () => Promise<void>;
   clearProfile: () => void;
@@ -100,14 +100,17 @@ export function ExpertProfileProvider({ children }: { children: ReactNode }) {
     [clearProfile],
   );
 
-  const refreshProfile = useCallback(async () => {
+  const refreshProfile = useCallback(async (options?: { silent?: boolean }) => {
     if (!(await hasExpertSession())) {
       clearProfile();
       return null;
     }
 
-    setIsLoading(true);
-    setError(null);
+    const silent = Boolean(options?.silent);
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
 
     try {
       const next = await getMyProfile();
@@ -116,7 +119,7 @@ export function ExpertProfileProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       return handleProfileError(err);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [clearProfile, handleProfileError, hydrateProfile]);
 

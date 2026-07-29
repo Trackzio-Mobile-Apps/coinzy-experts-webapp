@@ -2,6 +2,15 @@ import type { EvaluationFormState } from "@/lib/expert/types";
 
 const DRAFT_PREFIX = "coinzy_eval_draft_";
 
+function notifyDraftNavChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new StorageEvent("storage", {
+      key: `${DRAFT_PREFIX}nav`,
+    }),
+  );
+}
+
 export function loadEvaluationDraft(requestId: string): EvaluationFormState | null {
   if (typeof window === "undefined") return null;
   try {
@@ -20,6 +29,7 @@ export function saveEvaluationDraft(
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(`${DRAFT_PREFIX}${requestId}`, JSON.stringify(form));
+    notifyDraftNavChanged();
   } catch {
     // ignore storage errors
   }
@@ -28,4 +38,5 @@ export function saveEvaluationDraft(
 export function clearEvaluationDraft(requestId: string): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(`${DRAFT_PREFIX}${requestId}`);
+  notifyDraftNavChanged();
 }

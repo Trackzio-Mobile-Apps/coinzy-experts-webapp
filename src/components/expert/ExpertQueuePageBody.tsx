@@ -1,6 +1,6 @@
 import type { QueueListItem } from "@/lib/expert/types";
 import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
-import { formatDeadlineRemaining, formatRequestId } from "@/lib/expert/format";
+import { formatDeadlineRemaining } from "@/lib/expert/format";
 import { ExpertEmptyState } from "@/components/expert/ExpertEmptyState";
 import { ExpertQueueListSkeleton } from "@/components/expert/ExpertSkeleton";
 import Link from "next/link";
@@ -106,7 +106,7 @@ export function ExpertQueuePageBody({
                           {row.submittedDisplay}
                         </p>
                         <p className="mt-1 font-mono text-sm font-semibold text-text">
-                          REQ-ID {formatRequestId(row.id)}
+                          REQ-ID {row.displayId}
                         </p>
                         <div className="mt-2">
                           {row.status === "in_progress" ? (

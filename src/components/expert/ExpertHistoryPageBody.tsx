@@ -31,13 +31,24 @@ const PERIOD_TABS = [
   { id: "quarter" as const, label: "Last 3 months" },
 ] as const;
 
-/** Outline actions (Resume / View report) — maroon border + text */
+/** Outline actions — Figma: hug width, 28px tall, 8px radius, 28px x-pad */
 const outlineActionClass =
-  "inline-flex h-8 items-center justify-center rounded-lg border border-primary bg-surface px-3.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/[0.04]";
+  "inline-flex h-7 w-fit items-center justify-center whitespace-nowrap rounded-lg border border-primary bg-white px-7 text-xs font-semibold text-primary transition-colors hover:bg-primary/[0.04]";
 
 /** Primary action (Evaluate) */
 const solidActionClass =
-  "inline-flex h-8 items-center justify-center rounded-lg bg-primary px-3.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover";
+  "inline-flex h-7 w-fit items-center justify-center whitespace-nowrap rounded-lg bg-primary px-7 text-xs font-semibold text-white transition-colors hover:bg-primary-hover";
+
+/** Status pills — Figma: 146×22, fixed width, centered label */
+const statusPillClass =
+  "inline-flex h-[22px] w-[146px] shrink-0 items-center justify-center rounded-full text-xs font-medium leading-none";
+
+const thClass =
+  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted";
+const thCenterClass =
+  "px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted";
+const tdClass = "px-4 py-3.5 align-middle text-sm";
+const tdCenterClass = "px-4 py-3.5 align-middle text-center text-sm";
 
 function HistoryScrollIcon() {
   return (
@@ -87,9 +98,9 @@ export function ExpertHistoryPageBody({
         </div>
 
         {isLoading ? (
-          <ExpertStatCardsSkeleton count={3} columns={3} />
+          <ExpertStatCardsSkeleton count={3} columns={3} compact />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="flex flex-col gap-6 sm:flex-row sm:flex-wrap">
             <SummaryCard
               label="Total completed"
               value={String(summary.totalCompleted)}
@@ -128,13 +139,13 @@ export function ExpertHistoryPageBody({
           />
         </div>
       ) : (
-        <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-text-muted">
               {totalItems} total evaluation{totalItems === 1 ? "" : "s"}
             </p>
             <nav
-              className="flex flex-wrap items-center gap-6"
+              className="flex flex-wrap items-center gap-5 sm:gap-6"
               aria-label="Date range"
             >
               {PERIOD_TABS.map((tab) => {
@@ -157,154 +168,164 @@ export function ExpertHistoryPageBody({
             </nav>
           </div>
 
-          {/* Mobile list */}
-          <div className="flex flex-col gap-3 p-4 md:hidden">
-            {items.length === 0 ? (
-              <p className="py-12 text-center text-sm text-text-muted">
-                No evaluations in this period.
-              </p>
-            ) : (
-              items.map((row) => (
-                <article
-                  key={`m-${row.requestId}-${row.status}-${row.dateDisplay}`}
-                  className="rounded-xl border border-border p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-text">
-                        {row.requestLabel}
-                      </p>
-                      <p className="mt-1 truncate text-sm font-semibold text-text">
-                        {row.coinName}
-                      </p>
-                      <p className="mt-1 text-xs text-text-muted">
-                        {row.type} · {row.dateDisplay}
-                      </p>
-                    </div>
-                    <StatusPill status={row.status} />
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
-                    <p className="text-sm font-medium tabular-nums text-text">
-                      {formatHistoryValue(row.valueInr)}
-                    </p>
-                    <ActionButton
-                      action={row.action}
-                      requestId={row.requestId}
-                      reportId={row.reportId}
-                      offerId={row.offerId}
-                      page={page}
-                      period={period}
-                    />
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-
-          {/* Desktop table */}
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[920px] border-collapse text-left text-sm">
-              <colgroup>
-                <col className="w-[12%]" />
-                <col className="w-[26%]" />
-                <col className="w-[14%]" />
-                <col className="w-[10%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[14%]" />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Request ID
-                  </th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Coin
-                  </th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Type
-                  </th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Date
-                  </th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Value given
-                  </th>
-                  <th className="px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Status
-                  </th>
-                  <th className="px-6 py-3.5 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-6 py-16 text-center text-sm text-text-muted"
-                    >
-                      No evaluations in this period.
-                    </td>
-                  </tr>
-                ) : (
-                  items.map((row) => (
-                    <tr
-                      key={`${row.requestId}-${row.status}-${row.dateDisplay}`}
-                      className="border-b border-border/70 transition-colors last:border-b-0 hover:bg-[#fafafa]"
-                    >
-                      <td className="whitespace-nowrap px-6 py-5 text-sm text-text-muted">
-                        {row.requestLabel}
-                      </td>
-                      <td className="px-6 py-5">
-                        <span
-                          className="block truncate text-sm font-semibold text-text"
-                          title={row.coinName}
-                        >
+          <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+            {/* Mobile list */}
+            <div className="flex flex-col gap-3 p-4 md:hidden">
+              {items.length === 0 ? (
+                <p className="py-12 text-center text-sm text-text-muted">
+                  No evaluations in this period.
+                </p>
+              ) : (
+                items.map((row) => (
+                  <article
+                    key={`m-${row.requestId}-${row.status}-${row.dateDisplay}-${row.action}`}
+                    className="rounded-xl border border-border p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm text-text-muted">
+                          {row.requestLabel}
+                        </p>
+                        <p className="mt-1 truncate text-sm font-semibold text-text">
                           {row.coinName}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-5 text-sm text-text-muted">
-                        {row.type}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-5 text-sm text-text-muted">
-                        {row.dateDisplay}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-5 text-sm tabular-nums text-text">
+                        </p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {row.type} · {row.dateDisplay}
+                        </p>
+                      </div>
+                      <StatusPill status={row.status} />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+                      <p className="text-sm font-medium tabular-nums text-text">
                         {formatHistoryValue(row.valueInr)}
-                      </td>
-                      <td className="px-6 py-5">
-                        <StatusPill status={row.status} />
-                      </td>
-                      <td className="px-6 py-5 text-right">
-                        <ActionButton
-                          action={row.action}
-                          requestId={row.requestId}
-                          reportId={row.reportId}
-                          offerId={row.offerId}
-                          page={page}
-                          period={period}
-                        />
+                      </p>
+                      <ActionButton
+                        action={row.action}
+                        requestId={row.requestId}
+                        reportId={row.reportId}
+                        offerId={row.offerId}
+                        page={page}
+                        period={period}
+                      />
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] table-fixed border-collapse text-sm">
+                <colgroup>
+                  <col className="w-[11%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[168px]" />
+                  <col className="w-[17%]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-border">
+                    <th scope="col" className={thClass}>
+                      Request ID
+                    </th>
+                    <th scope="col" className={thClass}>
+                      Coin
+                    </th>
+                    <th scope="col" className={thClass}>
+                      Type
+                    </th>
+                    <th scope="col" className={thClass}>
+                      Date
+                    </th>
+                    <th scope="col" className={thClass}>
+                      Value given
+                    </th>
+                    <th scope="col" className={thCenterClass}>
+                      Status
+                    </th>
+                    <th scope="col" className={thCenterClass}>
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-6 py-16 text-center text-sm text-text-muted"
+                      >
+                        No evaluations in this period.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    items.map((row) => (
+                      <tr
+                        key={`${row.requestId}-${row.status}-${row.dateDisplay}-${row.action}`}
+                        className="border-b border-border last:border-b-0"
+                      >
+                        <td
+                          className={`${tdClass} whitespace-nowrap text-text-muted`}
+                        >
+                          {row.requestLabel}
+                        </td>
+                        <td className={tdClass}>
+                          <span
+                            className="block truncate font-semibold text-text"
+                            title={row.coinName}
+                          >
+                            {row.coinName}
+                          </span>
+                        </td>
+                        <td
+                          className={`${tdClass} whitespace-nowrap text-text-muted`}
+                        >
+                          {row.type}
+                        </td>
+                        <td
+                          className={`${tdClass} whitespace-nowrap text-text-muted`}
+                        >
+                          {row.dateDisplay}
+                        </td>
+                        <td
+                          className={`${tdClass} whitespace-nowrap font-medium tabular-nums text-text`}
+                        >
+                          {formatHistoryValue(row.valueInr)}
+                        </td>
+                        <td className={tdCenterClass}>
+                          <StatusPill status={row.status} />
+                        </td>
+                        <td className={tdCenterClass}>
+                          <ActionButton
+                            action={row.action}
+                            requestId={row.requestId}
+                            reportId={row.reportId}
+                            offerId={row.offerId}
+                            page={page}
+                            period={period}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-          <footer className="flex flex-col gap-4 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-text-muted">
-              Showing {from} to {to} of {totalItems} results
-            </p>
-            <HistoryPagination
-              page={page}
-              totalPages={totalPages}
-              period={period}
-            />
-          </footer>
-        </section>
+            <footer className="flex flex-col gap-4 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <p className="text-sm text-text-muted">
+                Showing {from} to {to} of {totalItems} results
+              </p>
+              <HistoryPagination
+                page={page}
+                totalPages={totalPages}
+                period={period}
+              />
+            </footer>
+          </section>
+        </div>
       )}
 
       {activeReportId || activeReportRequestId ? (
@@ -329,42 +350,50 @@ function SummaryCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface px-5 py-5 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-[0.04em] text-text-muted">
+    <article className="flex h-[116px] w-full flex-col justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-sm sm:w-[249px] sm:shrink-0">
+      <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-text-muted">
         {label}
       </p>
-      <p className="mt-2 text-[30px] font-semibold leading-9 tracking-tight text-text">
+      <p className="truncate text-[30px] font-semibold leading-none tracking-tight tabular-nums text-text">
         {value}
       </p>
-      <p className="mt-1 text-sm text-text-muted">{hint}</p>
-    </div>
+      <p className="truncate text-xs leading-4 text-text-muted">{hint}</p>
+    </article>
   );
 }
 
 function StatusPill({ status }: { status: HistoryRow["status"] }) {
   if (status === "missed") {
     return (
-      <span className="inline-flex rounded-full bg-expert-error-soft px-3 py-1 text-xs font-medium text-expert-error">
-        Missed
+      <span
+        className={`${statusPillClass} bg-expert-status-expired-bg text-expert-status-expired-text`}
+      >
+        Expired
       </span>
     );
   }
   if (status === "draft") {
     return (
-      <span className="inline-flex rounded-full bg-expert-status-draft-bg px-3 py-1 text-xs font-medium text-expert-status-draft-text">
+      <span
+        className={`${statusPillClass} bg-expert-status-draft-bg text-expert-status-draft-text`}
+      >
         Draft
       </span>
     );
   }
   if (status === "new") {
     return (
-      <span className="inline-flex rounded-full bg-expert-status-new-bg px-3 py-1 text-xs font-medium text-expert-status-new-text">
+      <span
+        className={`${statusPillClass} bg-expert-status-new-bg text-expert-status-new-text`}
+      >
         New
       </span>
     );
   }
   return (
-    <span className="inline-flex rounded-full bg-expert-status-done-bg px-3 py-1 text-xs font-medium text-expert-status-done-text">
+    <span
+      className={`${statusPillClass} bg-expert-status-done-bg text-expert-status-done-text`}
+    >
       Completed
     </span>
   );
@@ -402,6 +431,13 @@ function ActionButton({
       </Link>
     );
   }
+  if (action === "view_details") {
+    return (
+      <Link href={`/expert/queue/${requestId}`} className={outlineActionClass}>
+        View Details
+      </Link>
+    );
+  }
   if (action === "view_report") {
     return (
       <Link
@@ -430,53 +466,50 @@ function HistoryPagination({
   totalPages: number;
   period: HistoryPeriodFilter;
 }) {
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const safeTotal = Math.max(1, totalPages);
+  const current = Math.min(Math.max(1, page), safeTotal);
+  const pages = Array.from({ length: safeTotal }, (_, i) => i + 1);
   const navBtnClass =
     "inline-flex h-8 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text transition-colors hover:bg-input-bg";
   const navBtnDisabledClass =
-    "inline-flex h-8 items-center rounded-lg border border-border px-3 text-sm font-medium text-text-muted/50";
+    "inline-flex h-8 cursor-not-allowed items-center rounded-lg border border-border px-3 text-sm font-medium text-text-muted/50";
 
   return (
     <nav
-      className="flex flex-wrap items-center gap-2"
+      className="flex flex-wrap items-center gap-1.5"
       aria-label="History pagination"
     >
-      {page <= 1 ? (
+      {current <= 1 ? (
         <span className={navBtnDisabledClass}>&lt; Previous</span>
       ) : (
         <Link
-          href={buildExpertHistoryHref({ page: page - 1, period })}
+          href={buildExpertHistoryHref({ page: current - 1, period })}
           className={navBtnClass}
         >
           &lt; Previous
         </Link>
       )}
 
-      {pages.map((p) =>
-        p === page ? (
-          <span
-            key={p}
-            className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary px-2 text-sm font-semibold text-white"
-            aria-current="page"
-          >
-            {p}
-          </span>
-        ) : (
-          <Link
-            key={p}
-            href={buildExpertHistoryHref({ page: p, period })}
-            className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm font-medium text-text-muted transition-colors hover:bg-input-bg hover:text-text"
-          >
-            {p}
-          </Link>
-        ),
-      )}
+      {pages.map((p) => (
+        <Link
+          key={`page-${p}-of-${safeTotal}`}
+          href={buildExpertHistoryHref({ page: p, period })}
+          aria-current={p === current ? "page" : undefined}
+          className={
+            p === current
+              ? "inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary px-2.5 text-sm font-semibold text-white"
+              : "inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2.5 text-sm font-medium text-text-muted transition-colors hover:bg-input-bg hover:text-text"
+          }
+        >
+          {p}
+        </Link>
+      ))}
 
-      {page >= totalPages ? (
+      {current >= safeTotal ? (
         <span className={navBtnDisabledClass}>Next &gt;</span>
       ) : (
         <Link
-          href={buildExpertHistoryHref({ page: page + 1, period })}
+          href={buildExpertHistoryHref({ page: current + 1, period })}
           className={navBtnClass}
         >
           Next &gt;

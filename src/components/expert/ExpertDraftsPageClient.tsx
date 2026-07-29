@@ -35,15 +35,16 @@ export function ExpertDraftsPageClient() {
 
             try {
               const report = await getReportByRequestId(requestId);
-              if (!isDraftReport(report)) return null;
+              // Submitted reports belong in History, not Drafts.
+              if (report && !isDraftReport(report)) return null;
 
-              const serverProgress = reportProgressPercent(report);
+              const serverProgress = report ? reportProgressPercent(report) : 0;
               const progress = Math.max(serverProgress, localProgress);
-              if (progress <= 0) return null;
+              // Show every accepted (in-progress) request, even at 0% — History
+              // already labels these as drafts after accept.
               return mapRequestToDraftItem(request, progress);
             } catch {
-              // No server draft — still show if local autosave has content.
-              if (localProgress <= 0) return null;
+              // No server report yet — still an accepted draft.
               return mapRequestToDraftItem(request, localProgress);
             }
           }),
