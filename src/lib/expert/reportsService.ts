@@ -14,12 +14,134 @@ import type {
   BackendRequest,
   EvaluationFormState,
   ExpertReportApiData,
-  ExpertReportsListApiData,
   ReportContentFields,
   RequestMediaItem,
 } from "@/lib/expert/types";
 
 const REPORT_BY_REQUEST_KEY = "coinzy_report_by_request";
+const REPORT_MAP_ROUTE = "/api/expert/report-map";
+
+let serverReportMapCache: Record<string, string> | null = null;
+let serverReportMapHydrated = false;
+let serverReportMapHydratePromise: Promise<void> | null = null;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function reportIdFromUnknown(value: unknown): string | null {
+  if (typeof value === "string") {
+    const id = normalizeMongoId(value);
+    return id || null;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const id = normalizeMongoId(record._id ?? record.id ?? record.reportId);
+    return id || null;
+  }
+  return null;
+}
+
+function readLocalReportMap(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(REPORT_BY_REQUEST_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalReportMap(map: Record<string, string>): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function syncReportMapToServer(map: Record<string, string>): void {
+  if (typeof window === "undefined" || !Object.keys(map).length) return;
+  void fetch(REPORT_MAP_ROUTE, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ map }),
+    keepalive: true,
+  }).catch(() => {
+    // ignore — localStorage still holds the mapping
+  });
+}
+
+function syncReportEntryToServer(requestId: string, reportId: string): void {
+  if (typeof window === "undefined") return;
+  void fetch(REPORT_MAP_ROUTE, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requestId, reportId }),
+    keepalive: true,
+  }).catch(() => {
+    // ignore
+  });
+}
+
+/** Load request→report map for the logged-in expert (cross-device). */
+export async function hydrateServerReportMap(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (serverReportMapHydrated) return;
+  if (serverReportMapHydratePromise) {
+    await serverReportMapHydratePromise;
+    return;
+  }
+
+  serverReportMapHydratePromise = (async () => {
+    try {
+      const response = await fetch(REPORT_MAP_ROUTE, { cache: "no-store" });
+      if (response.status === 401) return;
+      if (!response.ok) return;
+
+      const json = (await response.json()) as { map?: Record<string, string> };
+      const map = json.map ?? {};
+      serverReportMapCache = map;
+      serverReportMapHydrated = true;
+
+      const local = readLocalReportMap();
+      const merged = { ...map, ...local };
+      if (Object.keys(merged).length) {
+        writeLocalReportMap(merged);
+      }
+      if (Object.keys(local).length) {
+        syncReportMapToServer(local);
+      }
+    } catch {
+      // ignore — fall back to localStorage only
+    }
+  })();
+
+  await serverReportMapHydratePromise;
+}
+
+/** Clear cached map after logout so the next expert session re-hydrates. */
+export function resetServerReportMapCache(): void {
+  serverReportMapCache = null;
+  serverReportMapHydrated = false;
+  serverReportMapHydratePromise = null;
+}
+
+/** Persist report ids embedded on request list responses. */
+export function syncReportMappingsFromRequests(
+  requests: BackendRequest[],
+): void {
+  for (const request of requests) {
+    const requestId = normalizeMongoId(request._id);
+    const reportId = extractReportIdFromRequest(request);
+    if (requestId && reportId) {
+      rememberReportForRequest(requestId, reportId);
+    }
+  }
+}
 
 function draftCoinName(
   form: EvaluationFormState | undefined,
@@ -120,10 +242,15 @@ export function rememberReportForRequest(
     const normalizedRequestId = normalizeMongoId(requestId);
     const normalizedReportId = normalizeMongoId(reportId);
     if (!normalizedRequestId || !normalizedReportId) return;
-    const raw = localStorage.getItem(REPORT_BY_REQUEST_KEY);
-    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+
+    const map = readLocalReportMap();
     map[normalizedRequestId] = normalizedReportId;
-    localStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
+    writeLocalReportMap(map);
+
+    if (!serverReportMapCache) serverReportMapCache = {};
+    serverReportMapCache[normalizedRequestId] = normalizedReportId;
+
+    syncReportEntryToServer(normalizedRequestId, normalizedReportId);
   } catch {
     // ignore storage errors
   }
@@ -135,10 +262,12 @@ export function getStoredReportIdForRequest(
   if (typeof window === "undefined") return null;
   try {
     const normalizedRequestId = normalizeMongoId(requestId);
-    const raw = localStorage.getItem(REPORT_BY_REQUEST_KEY);
-    if (!raw) return null;
-    const map = JSON.parse(raw) as Record<string, string>;
-    return map[normalizedRequestId] ?? null;
+    if (!normalizedRequestId) return null;
+
+    const local = readLocalReportMap()[normalizedRequestId];
+    if (local) return local;
+
+    return serverReportMapCache?.[normalizedRequestId] ?? null;
   } catch {
     return null;
   }
@@ -149,11 +278,14 @@ export function clearStoredReportIdForRequest(requestId: string): void {
   try {
     const normalizedRequestId = normalizeMongoId(requestId);
     if (!normalizedRequestId) return;
-    const raw = localStorage.getItem(REPORT_BY_REQUEST_KEY);
-    if (!raw) return;
-    const map = JSON.parse(raw) as Record<string, string>;
+
+    const map = readLocalReportMap();
     delete map[normalizedRequestId];
-    localStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
+    writeLocalReportMap(map);
+
+    if (serverReportMapCache) {
+      delete serverReportMapCache[normalizedRequestId];
+    }
   } catch {
     // ignore
   }
@@ -262,6 +394,9 @@ export async function updateReport(
 
   if (options.requestId) {
     rememberFromReport(options.requestId, envelope.data.report);
+  } else {
+    const requestId = normalizeMongoId(envelope.data.report.requestId);
+    if (requestId) rememberFromReport(requestId, envelope.data.report);
   }
 
   return envelope.data;
@@ -409,6 +544,7 @@ export async function submitReport(
   });
 }
 
+/** `GET /experts/reports/:id` — full report with `contentFields`. */
 export async function getReport(reportId: string) {
   const normalizedReportId = normalizeMongoId(reportId);
   if (!normalizedReportId) {
@@ -430,117 +566,94 @@ export async function getReport(reportId: string) {
   return envelope.data.report;
 }
 
-/** Read a report id from request payloads when the API embeds one. */
+/** `reportId` from `GET /experts/me/requests` (canonical link to the report). */
 export function extractReportIdFromRequest(
-  request: Pick<BackendRequest, "reportId" | "report">,
+  request: BackendRequest,
 ): string | null {
-  const direct = normalizeMongoId(request.reportId);
-  if (direct) return direct;
+  const fromApi = normalizeMongoId(request.reportId);
+  if (fromApi) return fromApi;
 
-  const embedded = request.report;
-  if (typeof embedded === "string") {
-    return normalizeMongoId(embedded) || null;
-  }
-  if (embedded && typeof embedded === "object") {
-    return normalizeMongoId(embedded._id) || null;
-  }
+  const embedded = reportIdFromUnknown(request.report);
+  if (embedded) return embedded;
 
-  return null;
-}
-
-async function fetchReportByRequestIdFromApi(
-  requestId: string,
-): Promise<BackendReport | null> {
-  const byRequestPaths = [
-    `/experts/reports/by-request/${encodeURIComponent(requestId)}`,
-    `/experts/me/reports/by-request/${encodeURIComponent(requestId)}`,
-  ];
-
-  for (const path of byRequestPaths) {
-    const { status, envelope } = await apiClient.get<ExpertReportApiData>(
-      path,
-      { skipAuthHandling: true },
-    );
-    if (status === 404) continue;
-    if (!envelope.error && envelope.data?.report) {
-      return envelope.data.report;
-    }
-  }
-
-  const listPaths = [
-    `/experts/me/reports?requestId=${encodeURIComponent(requestId)}`,
-    "/experts/me/reports",
-  ];
-
-  for (const path of listPaths) {
-    const { status, envelope } = await apiClient.get<ExpertReportsListApiData>(
-      path,
-      { skipAuthHandling: true },
-    );
-    if (status === 404) continue;
-
-    const reports = envelope.data?.reports;
-    if (!reports?.length) continue;
-
-    const match = reports.find(
-      (report) => normalizeMongoId(report.requestId) === requestId,
-    );
-    if (match) return match;
+  const payload = asRecord(request.payload);
+  for (const key of ["reportId", "report_id", "expertReportId", "report"]) {
+    const fromPayload = reportIdFromUnknown(payload[key]);
+    if (fromPayload) return fromPayload;
   }
 
   return null;
 }
 
 /**
- * Load a report for an accepted/completed request.
- * Uses local storage, embedded request fields, then API fallbacks.
+ * Load a report for a request using `GET /experts/reports/:id`.
+ * Prefers `reportId` on the request from `GET /experts/me/requests`;
+ * falls back to local draft mapping for in-progress work.
  */
 export async function getReportForRequest(
   requestId: string,
-  requestHint?: Pick<BackendRequest, "reportId" | "report">,
+  requestHint?: BackendRequest,
 ): Promise<BackendReport | null> {
   const normalizedRequestId = normalizeMongoId(requestId);
   if (!normalizedRequestId) return null;
 
-  const candidateIds = [
-    getStoredReportIdForRequest(normalizedRequestId),
-    requestHint ? extractReportIdFromRequest(requestHint) : null,
-  ].filter((id): id is string => Boolean(id));
+  const apiReportId = requestHint
+    ? extractReportIdFromRequest(requestHint)
+    : null;
 
-  for (const reportId of candidateIds) {
+  if (apiReportId) {
     try {
-      const report = await getReport(reportId);
+      const report = await getReport(apiReportId);
       rememberFromReport(normalizedRequestId, report);
       return report;
     } catch (err) {
-      if (err instanceof ExpertReportsError && err.status === 404) {
-        clearStoredReportIdForRequest(normalizedRequestId);
-        continue;
+      if (!(err instanceof ExpertReportsError && err.status === 404)) {
+        throw err;
       }
-      throw err;
     }
   }
 
-  const fromApi = await fetchReportByRequestIdFromApi(normalizedRequestId);
-  if (fromApi) {
-    rememberFromReport(normalizedRequestId, fromApi);
-    return fromApi;
-  }
+  await hydrateServerReportMap();
+  const storedReportId = getStoredReportIdForRequest(normalizedRequestId);
+  if (!storedReportId) return null;
 
-  return null;
+  try {
+    const report = await getReport(storedReportId);
+    rememberFromReport(normalizedRequestId, report);
+    return report;
+  } catch (err) {
+    if (err instanceof ExpertReportsError && err.status === 404) {
+      clearStoredReportIdForRequest(normalizedRequestId);
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function resolveReport(
   reportId?: string | null,
   requestId?: string | null,
-  requestHint?: Pick<BackendRequest, "reportId" | "report">,
+  requestHint?: BackendRequest,
 ) {
-  const normalizedReportId = reportId ? normalizeMongoId(reportId) : "";
-  const normalizedRequestId = requestId ? normalizeMongoId(requestId) : "";
+  const normalizedRequestId = requestId
+    ? normalizeMongoId(requestId)
+    : normalizeMongoId(requestHint?._id);
 
-  if (normalizedReportId) {
+  const urlReportId = reportId ? normalizeMongoId(reportId) : "";
+  const apiReportId =
+    !urlReportId && requestHint ? extractReportIdFromRequest(requestHint) : null;
+  const targetReportId = urlReportId || apiReportId || "";
+
+  if (targetReportId) {
     try {
-      return await getReport(normalizedReportId);
+      const report = await getReport(targetReportId);
+      if (normalizedRequestId) {
+        rememberFromReport(normalizedRequestId, report);
+      } else {
+        const linkedRequestId = normalizeMongoId(report.requestId);
+        if (linkedRequestId) rememberFromReport(linkedRequestId, report);
+      }
+      return report;
     } catch (err) {
       if (
         !(err instanceof ExpertReportsError && err.status === 404) ||
@@ -557,7 +670,7 @@ export async function resolveReport(
   }
 
   throw new ExpertReportsError(
-    normalizedReportId || normalizedRequestId
+    normalizedRequestId || targetReportId
       ? "Unable to load report for this evaluation."
       : "Report reference is missing.",
     400,

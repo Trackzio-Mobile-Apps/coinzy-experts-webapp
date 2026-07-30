@@ -7,6 +7,7 @@ import {
   clearStoredExpertProfile,
   setStoredExpertProfile,
 } from "@/lib/expert/expertSession";
+import { resetServerReportMapCache } from "@/lib/expert/reportsService";
 import { getMyProfile } from "@/lib/expert/profileService";
 import type {
   ExpertLoginApiData,
@@ -27,6 +28,7 @@ export class ExpertLoginError extends Error {
 export async function clearExpertSession(): Promise<void> {
   await clearExpertToken();
   clearStoredExpertProfile();
+  resetServerReportMapCache();
 }
 
 /** @deprecated Use `getMyProfile` from `@/lib/expert/profileService`. */

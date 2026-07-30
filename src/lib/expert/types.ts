@@ -142,18 +142,19 @@ export type BackendRequest = {
   _id: string;
   displayId?: string;
   coinTitle?: string | null;
-  userId?: string;
   country?: string;
   payload?: Record<string, unknown>;
   status: RequestStatus;
-  deadlineAt?: string | null;
+  assignedExpertId?: string | null;
+  firstAcceptanceWindowEndsAt?: string | null;
   ttlExpiresAt?: string | null;
+  deadlineAt?: string | null;
   acceptedAt?: string | null;
   submittedAt?: string | null;
   completedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
-  /** Present on some API responses once a report exists. */
+  /** From `GET /experts/me/requests` once a report exists (draft or submitted). */
   reportId?: string | null;
   report?: BackendReport | string | null;
 };
@@ -191,10 +192,6 @@ export type ExpertOffersApiData = {
 
 export type ExpertRequestsApiData = {
   requests: BackendRequest[];
-};
-
-export type ExpertReportsListApiData = {
-  reports: BackendReport[];
 };
 
 export type ExpertReportApiData = {

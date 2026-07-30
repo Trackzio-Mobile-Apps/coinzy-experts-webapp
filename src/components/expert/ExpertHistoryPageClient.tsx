@@ -45,8 +45,8 @@ export function ExpertHistoryPageClient() {
         );
         return mapRequestToHistoryRow(request, {
           reportId:
-            getStoredReportIdForRequest(requestId) ??
             extractReportIdFromRequest(request) ??
+            getStoredReportIdForRequest(requestId) ??
             undefined,
           offerId: matchedOffer
             ? normalizeMongoId(matchedOffer._id)

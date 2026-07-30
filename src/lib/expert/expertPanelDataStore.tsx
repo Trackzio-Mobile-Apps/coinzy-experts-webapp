@@ -1,9 +1,11 @@
 "use client";
 
 import { normalizeMongoId } from "@/lib/expert/format";
+import { buildQueueList } from "@/lib/expert/requestMappers";
 import {
-  buildQueueList,
-} from "@/lib/expert/requestMappers";
+  hydrateServerReportMap,
+  syncReportMappingsFromRequests,
+} from "@/lib/expert/reportsService";
 import {
   getAcceptedRequests,
   getExpertOffers,
@@ -66,11 +68,16 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
       setError(null);
     }
     try {
+      await hydrateServerReportMap();
+
       const [nextOffers, nextRequests, nextAccepted] = await Promise.all([
         getExpertOffers(),
         getExpertRequests(),
         getAcceptedRequests(),
       ]);
+      syncReportMappingsFromRequests(nextRequests);
+      syncReportMappingsFromRequests(nextAccepted);
+
       console.log("[expert] GET /experts/me/offers", nextOffers);
       console.log("[expert] GET /experts/me/requests", nextRequests);
       console.log("[expert] GET /experts/me/requests?status=accepted", nextAccepted);
