@@ -165,48 +165,23 @@ export function ExpertHistoryTableSkeleton({ rows = 5 }: { rows?: number }) {
 export function ExpertProfileSkeleton() {
   return (
     <div className="space-y-8" aria-busy="true" aria-label="Loading profile">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <SkeletonBone className="h-7 w-36" />
-          <SkeletonBone className="mt-2 h-4 w-64" />
-        </div>
-        <SkeletonBone className="h-10 w-32 rounded-lg" />
+      <div>
+        <SkeletonBone className="h-7 w-36" />
+        <SkeletonBone className="mt-2 h-4 w-64" />
       </div>
 
-      <ExpertStatCardsSkeleton count={4} />
-
       <section className="rounded-2xl border border-border/70 bg-surface p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col gap-6 border-b border-border/60 pb-8 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
           <SkeletonBone className="h-20 w-20 rounded-full" />
-          <div className="min-w-0 flex-1 space-y-3">
+          <div className="min-w-0 flex-1 space-y-4">
             <SkeletonBone className="h-6 w-48" />
             <SkeletonBone className="h-4 w-full max-w-lg" />
-            <div className="flex flex-wrap gap-2">
-              <SkeletonBone className="h-7 w-24 rounded-full" />
-              <SkeletonBone className="h-7 w-28 rounded-full" />
-              <SkeletonBone className="h-7 w-20 rounded-full" />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 space-y-8">
-          <div>
-            <SkeletonBone className="h-4 w-40" />
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               {Array.from({ length: 4 }, (_, index) => (
                 <div key={index} className="space-y-2">
-                  <SkeletonBone className="h-3 w-20" />
-                  <SkeletonBone className="h-10 w-full rounded-lg" />
+                  <SkeletonBone className="h-3 w-24" />
+                  <SkeletonBone className="h-4 w-40" />
                 </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <SkeletonBone className="h-4 w-32" />
-            <SkeletonBone className="mt-4 h-28 w-full rounded-lg" />
-            <div className="mt-6 flex flex-wrap gap-2">
-              {Array.from({ length: 6 }, (_, index) => (
-                <SkeletonBone key={index} className="h-8 w-28 rounded-full" />
               ))}
             </div>
           </div>

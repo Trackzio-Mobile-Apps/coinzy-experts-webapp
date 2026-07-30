@@ -3,15 +3,13 @@ export type ExpertStats = {
   newRequests: number;
   completed: number;
   totalEarningsInr: number;
+  missedDeadlineCount: number;
   avgCompletionHours?: number | null;
 };
 
-export type ExpertStatus =
-  | "active"
-  | "inactive"
-  | "available"
-  | "unavailable"
-  | string;
+export type ExpertBackendStatus = "active" | "suspended" | "blocked";
+
+export type ExpertStatus = ExpertBackendStatus | string;
 
 /** Source of truth from `GET /experts/me`. */
 export type ExpertProfile = {
@@ -20,13 +18,18 @@ export type ExpertProfile = {
   firstName: string;
   lastName: string;
   initials?: string;
+  isInternal: boolean;
   status: ExpertStatus;
-  /** Whether the expert is considered for future request allocation. */
+  /** ISO country codes; empty array = all countries on backend. */
+  supportedCountries: string[];
   isAvailableForRequests: boolean;
   activeCommittedRequestCount: number;
-  maxActiveWorkload: number;
   lastAssignedAt: string | null;
+  profilePicture: string | null;
+  oneLineDescription: string | null;
   stats: ExpertStats;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 /** Alias for profile data returned after login. */
@@ -41,21 +44,78 @@ export type ExpertLoginApiData = {
   token: string;
 };
 
-/** Raw expert object from the backend API. */
+/** Raw expert object from the backend API (`GET /experts/me`). */
 export type BackendExpert = {
   _id: string;
-  name?: string;
+  name: string;
   email: string;
-  status?: string;
-  isAvailableForRequests?: boolean;
-  maxActiveWorkload?: number;
-  activeCommittedRequestCount?: number;
-  lastAssignedAt?: string | null;
-  stats?: {
-    completedCount?: number;
-    missedDeadlineCount?: number;
-    avgCompletionHoursLast5?: number | null;
+  isInternal: boolean;
+  isAvailableForRequests: boolean;
+  supportedCountries: string[];
+  status: ExpertBackendStatus;
+  activeCommittedRequestCount: number;
+  stats: {
+    completedCount: number;
+    missedDeadlineCount: number;
+    avgCompletionHoursLast5: number | null;
   };
+  lastAssignedAt: string | null;
+  profilePicture: string | null;
+  oneLineDescription: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReportStatus = "draft" | "submitted";
+
+export type ReportGeneralInfo = {
+  coinName: string;
+  currencyAndDenomination: string;
+  issuer: string;
+  period: string;
+  rulerOrGovt: string;
+  yearOfMinting: string;
+  mintLocation: string;
+};
+
+export type ReportPhysicalSpecs = {
+  material: string;
+  weight: string;
+  dominantColor: string;
+  mintingMethod: string;
+};
+
+export type ReportDesignDetails = {
+  obverseDescription: string;
+  reverseDescription: string;
+  history: string;
+};
+
+export type ReportValueAndRarity = {
+  rarity: string;
+  estimatedPriceRange: string;
+};
+
+export type ReportExpertAssessment = {
+  authenticity: string;
+  conditionOrGrade: string;
+  errorsOrSpecialFeatures: string;
+  recommendation: string;
+};
+
+export type ReportContentFields = {
+  generalInfo: ReportGeneralInfo;
+  physicalSpecs: ReportPhysicalSpecs;
+  designDetails: ReportDesignDetails;
+  valueAndRarity: ReportValueAndRarity;
+  expertAssessment: ReportExpertAssessment;
+};
+
+export type UpsertReportBody = {
+  requestId?: string;
+  contentFields?: Partial<ReportContentFields>;
+  attachments?: unknown[];
+  isDraft?: boolean;
 };
 
 export type ExpertMeApiData = {
@@ -107,18 +167,19 @@ export type BackendOffer = {
 export type BackendReport = {
   _id: string;
   requestId: string;
-  requestDisplayId?: string | null;
-  expertId?: string;
-  userId?: string;
-  coinTitle?: string | null;
-  content: unknown;
-  attachments?: unknown[];
-  /** Present on newer API responses; prefer this over status when set. */
-  isDraft?: boolean;
-  status?: string;
-  submittedAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
+  requestDisplayId: string | null;
+  expertId: string;
+  userId: string;
+  coinTitle: string;
+  /** Legacy flat content — prefer `contentFields`. */
+  content?: Record<string, unknown>;
+  contentFields?: ReportContentFields;
+  attachments: unknown[];
+  isDraft: boolean;
+  status: ReportStatus;
+  submittedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ExpertOffersApiData = {
@@ -246,6 +307,7 @@ export type ExpertUserSummary = {
   firstName: string;
   lastName: string;
   initials: string;
+  profilePicture?: string | null;
 };
 
 export type ExpertDashboardStats = {

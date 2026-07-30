@@ -10,6 +10,7 @@ import {
 import { clearEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
 import { buildEvaluationDetail } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
+import { ensureDraftReport } from "@/lib/expert/reportsService";
 import { formatRequestId, normalizeMongoId } from "@/lib/expert/format";
 import type { EvaluationRequestDetail } from "@/lib/expert/types";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -107,6 +108,17 @@ export function ExpertQueueRequestPageClient({
       setAccepted(true);
       setShowAcceptedToast(true);
       setUnavailable(false);
+      const coinName =
+        typeof request?.coinTitle === "string" && request.coinTitle.trim()
+          ? request.coinTitle.trim()
+          : undefined;
+      try {
+        await ensureDraftReport({ requestId, coinName });
+      } catch (draftErr) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[expert] initial draft create failed", draftErr);
+        }
+      }
       await refresh();
     } catch (err) {
       const message =

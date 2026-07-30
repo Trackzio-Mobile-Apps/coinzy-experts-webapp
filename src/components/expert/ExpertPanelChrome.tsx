@@ -30,8 +30,9 @@ export function ExpertPanelChrome({ children }: ExpertPanelChromeProps) {
           profile.lastName,
           profile.initials,
         ),
+        profilePicture: profile.profilePicture,
       }
-    : { firstName: "Expert", lastName: "", initials: "EX" };
+    : { firstName: "Expert", lastName: "", initials: "EX", profilePicture: null };
 
   return (
     <ExpertPanelShell

@@ -1,6 +1,5 @@
 "use client";
 
-import { evaluateFormProgress } from "@/lib/expert/evaluationForm";
 import { normalizeMongoId } from "@/lib/expert/format";
 import {
   buildQueueList,
@@ -10,7 +9,6 @@ import {
   getExpertOffers,
   getExpertRequests,
 } from "@/lib/expert/requestsService";
-import { loadEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
 import type {
   BackendOffer,
   BackendRequest,
@@ -80,12 +78,7 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
     const queue = buildQueueList(offers, acceptedRequests).length;
     // Count accepted requests that have local draft progress (server drafts
     // hydrate this on open; Drafts page also loads server drafts).
-    const drafts = acceptedRequests.filter((request) => {
-      const requestId = normalizeMongoId(request._id);
-      const draft = loadEvaluationDraft(requestId);
-      if (!draft) return false;
-      return evaluateFormProgress(draft).filled > 0;
-    }).length;
+    const drafts = acceptedRequests.length;
     return { queue, drafts };
   }, [offers, acceptedRequests]);
 

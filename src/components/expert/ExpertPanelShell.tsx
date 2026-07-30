@@ -1,6 +1,7 @@
 "use client";
 
 import { ExpertLogoutConfirmModal } from "@/components/expert/ExpertLogoutConfirmModal";
+import { ExpertAvatar } from "@/components/expert/ExpertAvatar";
 import type { ExpertNavCounts, ExpertUserSummary } from "@/lib/expert/types";
 import { clearExpertSession } from "@/lib/expert/authService";
 import {
@@ -271,9 +272,13 @@ function ExpertNavInner({
 
       <div className="-mx-4 mt-auto space-y-2 border-t border-white/15 px-4 pt-3 lg:-mx-5 lg:px-5 xl:-mx-8 xl:space-y-3 xl:px-8 xl:pt-5">
         <div className="flex items-center gap-3 px-1">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold xl:h-12 xl:w-12 xl:text-sm">
-            {user.initials}
-          </span>
+          <ExpertAvatar
+            profilePicture={user.profilePicture}
+            initials={user.initials}
+            name={[user.firstName, user.lastName].filter(Boolean).join(" ")}
+            size="sm"
+            fallbackClassName="bg-white/15 text-expert-sidebar-foreground"
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">
               {user.firstName} {user.lastName}

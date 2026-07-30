@@ -7,7 +7,8 @@ import { normalizeMongoId } from "@/lib/expert/format";
 import { mapRequestToDraftItem } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import {
-  getReportByRequestId,
+  getReportForRequest,
+  getStoredReportIdForRequest,
   isDraftReport,
   reportProgressPercent,
 } from "@/lib/expert/reportsService";
@@ -33,24 +34,21 @@ export function ExpertDraftsPageClient() {
               ? evaluateFormProgress(local).percent
               : 0;
 
-            try {
-              const report = await getReportByRequestId(requestId);
-              if (!isDraftReport(report)) return null;
-
-              const serverProgress = reportProgressPercent(report);
-              const progress = Math.max(serverProgress, localProgress);
-              if (progress <= 0) return null;
-              return mapRequestToDraftItem(request, progress);
-            } catch {
-              // No server draft — still show if local autosave has content.
-              if (localProgress <= 0) return null;
-              return mapRequestToDraftItem(request, localProgress);
+            let progress = localProgress;
+            const storedReportId = getStoredReportIdForRequest(requestId);
+            if (storedReportId) {
+              const report = await getReportForRequest(requestId);
+              if (report && isDraftReport(report)) {
+                progress = Math.max(progress, reportProgressPercent(report));
+              }
             }
+
+            return mapRequestToDraftItem(request, progress);
           }),
         );
 
         if (!cancelled) {
-          setItems(rows.filter((row): row is DraftListItem => row != null));
+          setItems(rows);
         }
       } finally {
         if (!cancelled) setLoadingDrafts(false);
