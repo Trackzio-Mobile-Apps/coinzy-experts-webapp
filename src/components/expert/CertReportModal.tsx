@@ -6,10 +6,11 @@ import {
   buildEvaluationReportDisplay,
   type EvaluationReportDisplay,
 } from "@/lib/expert/evaluationReportView";
+import { downloadEvaluationReportPdf } from "@/lib/expert/evaluationReportExport";
 import { buildExpertHistoryHref, type HistoryPeriodFilter } from "@/lib/expert/format";
 import { resolveReport } from "@/lib/expert/reportsService";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type CertReportModalProps = {
   reportId: string | null;
@@ -25,10 +26,10 @@ export function CertReportModal({
   period,
 }: CertReportModalProps) {
   const router = useRouter();
-  const printRef = useRef<HTMLDivElement>(null);
   const [report, setReport] = useState<EvaluationReportDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const close = useCallback(() => {
     router.replace(buildExpertHistoryHref({ page, period }));
@@ -73,27 +74,35 @@ export function CertReportModal({
     };
   }, [close]);
 
-  function handlePrint() {
-    if (!report) return;
-    window.print();
+  async function handleDownloadPdf() {
+    if (!report || downloadingPdf) return;
+
+    setDownloadingPdf(true);
+    try {
+      await downloadEvaluationReportPdf(report);
+    } catch {
+      window.alert("Unable to generate PDF. Please try again.");
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-900/80 p-4 backdrop-blur-[2px] print:relative print:inset-auto print:block print:bg-white print:p-0"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-900/80 p-4 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="evaluation-report-title"
     >
       <button
         type="button"
-        className="absolute inset-0 z-[100] cursor-default bg-transparent print:hidden"
+        className="absolute inset-0 z-[100] cursor-default bg-transparent"
         aria-label="Close report"
         onClick={close}
       />
 
-      <div className="relative z-[101] flex max-h-[min(92vh,900px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-surface shadow-2xl ring-1 ring-black/10 print:max-h-none print:max-w-none print:rounded-none print:shadow-none print:ring-0">
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/80 bg-surface px-4 py-3 print:hidden">
+      <div className="relative z-[101] flex max-h-[min(92vh,900px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-surface shadow-2xl ring-1 ring-black/10">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/80 bg-surface px-4 py-3">
           <h2
             id="evaluation-report-title"
             className="mr-auto text-sm font-semibold text-text"
@@ -102,11 +111,11 @@ export function CertReportModal({
           </h2>
           <button
             type="button"
-            onClick={handlePrint}
-            disabled={!report || loading}
+            onClick={() => void handleDownloadPdf()}
+            disabled={!report || loading || downloadingPdf}
             className="rounded-lg border border-primary bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Print / Save PDF
+            {downloadingPdf ? "Generating PDF…" : "Download PDF"}
           </button>
           <button
             type="button"
@@ -118,10 +127,7 @@ export function CertReportModal({
           </button>
         </div>
 
-        <div
-          ref={printRef}
-          className="min-h-0 flex-1 overflow-auto px-5 py-6 sm:px-8 sm:py-8 print:overflow-visible"
-        >
+        <div className="min-h-0 flex-1 overflow-auto px-5 py-6 sm:px-8 sm:py-8">
           {loading ? (
             <ExpertReportModalSkeleton />
           ) : error ? (

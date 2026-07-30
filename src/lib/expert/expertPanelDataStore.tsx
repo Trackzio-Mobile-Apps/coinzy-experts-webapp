@@ -24,6 +24,17 @@ import {
   type ReactNode,
 } from "react";
 
+type ExpertPanelRefreshResult = {
+  offers: BackendOffer[];
+  requests: BackendRequest[];
+  acceptedRequests: BackendRequest[];
+};
+
+type ExpertPanelRefreshOptions = {
+  /** Skip loading UI — for background polling on the queue home page. */
+  silent?: boolean;
+};
+
 type ExpertPanelDataContextValue = {
   offers: BackendOffer[];
   requests: BackendRequest[];
@@ -31,7 +42,9 @@ type ExpertPanelDataContextValue = {
   isLoading: boolean;
   error: string | null;
   navCounts: ExpertNavCounts;
-  refresh: () => Promise<void>;
+  refresh: (
+    options?: ExpertPanelRefreshOptions,
+  ) => Promise<ExpertPanelRefreshResult | null>;
 };
 
 const ExpertPanelDataContext =
@@ -46,9 +59,12 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const refresh = useCallback(async (options?: ExpertPanelRefreshOptions) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       const [nextOffers, nextRequests, nextAccepted] = await Promise.all([
         getExpertOffers(),
@@ -61,12 +77,22 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
       setOffers(nextOffers);
       setRequests(nextRequests);
       setAcceptedRequests(nextAccepted);
+      return {
+        offers: nextOffers,
+        requests: nextRequests,
+        acceptedRequests: nextAccepted,
+      };
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to load panel data.",
-      );
+      if (!silent) {
+        setError(
+          err instanceof Error ? err.message : "Unable to load panel data.",
+        );
+      }
+      return null;
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, []);
 

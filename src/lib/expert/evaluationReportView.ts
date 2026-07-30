@@ -48,7 +48,7 @@ function buildMarketSection(form: EvaluationFormState): EvaluationReportSection 
     fields: [
       { label: "Rarity", value: displayValue(form.rarity) },
       {
-        label: "Estimated Price Range",
+        label: "Estimated Price Range (min and max)",
         value: displayValue(priceRange),
       },
     ],

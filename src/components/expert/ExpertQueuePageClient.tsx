@@ -6,6 +6,7 @@ import { ExpertToast } from "@/components/expert/ExpertToast";
 import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
 import { buildQueueList } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
+import { useExpertQueuePolling } from "@/lib/expert/useExpertQueuePolling";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -13,6 +14,18 @@ export function ExpertQueuePageClient() {
   const searchParams = useSearchParams();
   const { offers, acceptedRequests, isLoading, error } = useExpertPanelData();
   const [showLoginToast, setShowLoginToast] = useState(false);
+  const [showNewRequestToast, setShowNewRequestToast] = useState(false);
+  const [newRequestCount, setNewRequestCount] = useState(0);
+
+  const handleNewOffers = useCallback((count: number) => {
+    setNewRequestCount(count);
+    setShowNewRequestToast(true);
+  }, []);
+
+  useExpertQueuePolling({
+    enabled: !isLoading && !error,
+    onNewOffers: handleNewOffers,
+  });
 
   useEffect(() => {
     if (
@@ -28,6 +41,15 @@ export function ExpertQueuePageClient() {
   }, []);
 
   const closeLoginToast = useCallback(() => setShowLoginToast(false), []);
+  const closeNewRequestToast = useCallback(
+    () => setShowNewRequestToast(false),
+    [],
+  );
+
+  const newRequestMessage =
+    newRequestCount === 1
+      ? "1 new request in your queue"
+      : `${newRequestCount} new requests in your queue`;
 
   const allItems = useMemo(
     () => buildQueueList(offers, acceptedRequests),
@@ -61,6 +83,11 @@ export function ExpertQueuePageClient() {
         open={showLoginToast}
         message="Login successful"
         onClose={closeLoginToast}
+      />
+      <ExpertToast
+        open={showNewRequestToast}
+        message={newRequestMessage}
+        onClose={closeNewRequestToast}
       />
     </ExpertDashboardSection>
   );
