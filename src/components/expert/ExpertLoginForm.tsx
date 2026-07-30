@@ -10,6 +10,10 @@ import {
   ExpertLoginError,
   login,
 } from "@/lib/expert/authService";
+import {
+  AVAILABILITY_PROMPT_DISMISSED_KEY,
+  AVAILABILITY_PROMPT_KEY,
+} from "@/lib/expert/constants";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -42,8 +46,12 @@ export function ExpertLoginForm() {
     const password = String(formData.get("password") ?? "");
 
     try {
-      await login(email, password);
+      const { expert } = await login(email, password);
       window.sessionStorage.setItem("coinzy_expert_login_success", "1");
+      if (!expert.isAvailableForRequests) {
+        window.sessionStorage.setItem(AVAILABILITY_PROMPT_KEY, "1");
+        window.sessionStorage.removeItem(AVAILABILITY_PROMPT_DISMISSED_KEY);
+      }
       router.replace("/expert/queue");
     } catch (err) {
       if (err instanceof ExpertLoginError) {
