@@ -445,7 +445,7 @@ function ActionButton({
           page,
           period,
           report: reportId ?? null,
-          reportRequest: reportId ? null : requestId,
+          reportRequest: requestId,
         })}
         scroll={false}
         className={outlineActionClass}

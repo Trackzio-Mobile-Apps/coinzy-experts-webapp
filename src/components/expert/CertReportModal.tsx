@@ -9,7 +9,7 @@ import {
 import { downloadEvaluationReportPdf } from "@/lib/expert/evaluationReportExport";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import { buildExpertHistoryHref, normalizeMongoId, type HistoryPeriodFilter } from "@/lib/expert/format";
-import { resolveReport } from "@/lib/expert/reportsService";
+import { resolveReport, extractReportIdFromRequest } from "@/lib/expert/reportsService";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -43,8 +43,38 @@ export function CertReportModal({
       setLoading(true);
       setError(null);
       try {
-        const backendReport = await resolveReport(reportId, reportRequestId);
+        const normalizedReportId = reportId
+          ? normalizeMongoId(reportId)
+          : "";
+        const normalizedRequestId = reportRequestId
+          ? normalizeMongoId(reportRequestId)
+          : "";
+
+        const requestHint =
+          requests.find((item) => {
+            const itemRequestId = normalizeMongoId(item._id);
+            if (
+              normalizedRequestId &&
+              itemRequestId === normalizedRequestId
+            ) {
+              return true;
+            }
+            if (
+              normalizedReportId &&
+              extractReportIdFromRequest(item) === normalizedReportId
+            ) {
+              return true;
+            }
+            return false;
+          }) ?? undefined;
+
+        const backendReport = await resolveReport(
+          reportId,
+          reportRequestId ?? requestHint?._id ?? null,
+          requestHint,
+        );
         if (cancelled) return;
+
         const request = requests.find(
           (item) =>
             normalizeMongoId(item._id) ===

@@ -153,6 +153,9 @@ export type BackendRequest = {
   completedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** Present on some API responses once a report exists. */
+  reportId?: string | null;
+  report?: BackendReport | string | null;
 };
 
 export type BackendOffer = {
@@ -188,6 +191,10 @@ export type ExpertOffersApiData = {
 
 export type ExpertRequestsApiData = {
   requests: BackendRequest[];
+};
+
+export type ExpertReportsListApiData = {
+  reports: BackendReport[];
 };
 
 export type ExpertReportApiData = {

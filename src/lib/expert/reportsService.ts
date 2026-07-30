@@ -14,6 +14,7 @@ import type {
   BackendRequest,
   EvaluationFormState,
   ExpertReportApiData,
+  ExpertReportsListApiData,
   ReportContentFields,
   RequestMediaItem,
 } from "@/lib/expert/types";
@@ -429,41 +430,138 @@ export async function getReport(reportId: string) {
   return envelope.data.report;
 }
 
+/** Read a report id from request payloads when the API embeds one. */
+export function extractReportIdFromRequest(
+  request: Pick<BackendRequest, "reportId" | "report">,
+): string | null {
+  const direct = normalizeMongoId(request.reportId);
+  if (direct) return direct;
+
+  const embedded = request.report;
+  if (typeof embedded === "string") {
+    return normalizeMongoId(embedded) || null;
+  }
+  if (embedded && typeof embedded === "object") {
+    return normalizeMongoId(embedded._id) || null;
+  }
+
+  return null;
+}
+
+async function fetchReportByRequestIdFromApi(
+  requestId: string,
+): Promise<BackendReport | null> {
+  const byRequestPaths = [
+    `/experts/reports/by-request/${encodeURIComponent(requestId)}`,
+    `/experts/me/reports/by-request/${encodeURIComponent(requestId)}`,
+  ];
+
+  for (const path of byRequestPaths) {
+    const { status, envelope } = await apiClient.get<ExpertReportApiData>(
+      path,
+      { skipAuthHandling: true },
+    );
+    if (status === 404) continue;
+    if (!envelope.error && envelope.data?.report) {
+      return envelope.data.report;
+    }
+  }
+
+  const listPaths = [
+    `/experts/me/reports?requestId=${encodeURIComponent(requestId)}`,
+    "/experts/me/reports",
+  ];
+
+  for (const path of listPaths) {
+    const { status, envelope } = await apiClient.get<ExpertReportsListApiData>(
+      path,
+      { skipAuthHandling: true },
+    );
+    if (status === 404) continue;
+
+    const reports = envelope.data?.reports;
+    if (!reports?.length) continue;
+
+    const match = reports.find(
+      (report) => normalizeMongoId(report.requestId) === requestId,
+    );
+    if (match) return match;
+  }
+
+  return null;
+}
+
 /**
- * Load a draft report using the stored report id for a request.
- * There is no GET-by-request endpoint — returns null when unknown.
+ * Load a report for an accepted/completed request.
+ * Uses local storage, embedded request fields, then API fallbacks.
  */
 export async function getReportForRequest(
   requestId: string,
+  requestHint?: Pick<BackendRequest, "reportId" | "report">,
 ): Promise<BackendReport | null> {
   const normalizedRequestId = normalizeMongoId(requestId);
   if (!normalizedRequestId) return null;
 
-  const storedReportId = getStoredReportIdForRequest(normalizedRequestId);
-  if (!storedReportId) return null;
+  const candidateIds = [
+    getStoredReportIdForRequest(normalizedRequestId),
+    requestHint ? extractReportIdFromRequest(requestHint) : null,
+  ].filter((id): id is string => Boolean(id));
 
-  try {
-    const report = await getReport(storedReportId);
-    rememberFromReport(normalizedRequestId, report);
-    return report;
-  } catch (err) {
-    if (err instanceof ExpertReportsError && err.status === 404) {
-      clearStoredReportIdForRequest(normalizedRequestId);
+  for (const reportId of candidateIds) {
+    try {
+      const report = await getReport(reportId);
+      rememberFromReport(normalizedRequestId, report);
+      return report;
+    } catch (err) {
+      if (err instanceof ExpertReportsError && err.status === 404) {
+        clearStoredReportIdForRequest(normalizedRequestId);
+        continue;
+      }
+      throw err;
     }
-    return null;
   }
+
+  const fromApi = await fetchReportByRequestIdFromApi(normalizedRequestId);
+  if (fromApi) {
+    rememberFromReport(normalizedRequestId, fromApi);
+    return fromApi;
+  }
+
+  return null;
 }
 
 export async function resolveReport(
   reportId?: string | null,
   requestId?: string | null,
+  requestHint?: Pick<BackendRequest, "reportId" | "report">,
 ) {
-  if (reportId) return getReport(reportId);
-  if (requestId) {
-    const report = await getReportForRequest(requestId);
+  const normalizedReportId = reportId ? normalizeMongoId(reportId) : "";
+  const normalizedRequestId = requestId ? normalizeMongoId(requestId) : "";
+
+  if (normalizedReportId) {
+    try {
+      return await getReport(normalizedReportId);
+    } catch (err) {
+      if (
+        !(err instanceof ExpertReportsError && err.status === 404) ||
+        !normalizedRequestId
+      ) {
+        throw err;
+      }
+    }
+  }
+
+  if (normalizedRequestId) {
+    const report = await getReportForRequest(normalizedRequestId, requestHint);
     if (report) return report;
   }
-  throw new ExpertReportsError("Report reference is missing.", 400);
+
+  throw new ExpertReportsError(
+    normalizedReportId || normalizedRequestId
+      ? "Unable to load report for this evaluation."
+      : "Report reference is missing.",
+    400,
+  );
 }
 
 /** Progress % from a server report. */

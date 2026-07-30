@@ -13,7 +13,10 @@ import {
   filterHistoryByPeriod,
   mapRequestToHistoryRow,
 } from "@/lib/expert/requestMappers";
-import { getStoredReportIdForRequest } from "@/lib/expert/reportsService";
+import {
+  extractReportIdFromRequest,
+  getStoredReportIdForRequest,
+} from "@/lib/expert/reportsService";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import type { HistorySummaryStats } from "@/lib/expert/types";
@@ -41,7 +44,10 @@ export function ExpertHistoryPageClient() {
           (offer) => normalizeMongoId(offer.request._id) === requestId,
         );
         return mapRequestToHistoryRow(request, {
-          reportId: getStoredReportIdForRequest(requestId) ?? undefined,
+          reportId:
+            getStoredReportIdForRequest(requestId) ??
+            extractReportIdFromRequest(request) ??
+            undefined,
           offerId: matchedOffer
             ? normalizeMongoId(matchedOffer._id)
             : undefined,
