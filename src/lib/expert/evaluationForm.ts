@@ -4,8 +4,8 @@ import type {
 } from "@/lib/expert/types";
 
 /**
- * Evaluation form aligned to the expert report field spec.
- * Progress + submit enforce `required: true` fields only (15 mandatory).
+ * Evaluation form aligned to `ReportContentFields` (flat keys match API field names).
+ * Progress + submit enforce `required: true` fields only (15 mandatory on submit).
  */
 export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
   {
@@ -14,13 +14,13 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
     title: "General information",
     fields: [
       {
-        key: "nameDesignation",
+        key: "coinName",
         label: "Coin Name",
         description: "What is the name of the coin?",
         required: true,
       },
       {
-        key: "currency",
+        key: "currencyAndDenomination",
         label: "Currency and Denomination",
         description: "What is the currency type and denomination?",
         required: true,
@@ -38,7 +38,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
         required: true,
       },
       {
-        key: "rulerGovt",
+        key: "rulerOrGovt",
         label: "Ruler/Govt",
         description: "Which ruler or government does it belong to?",
         required: true,
@@ -50,7 +50,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
         required: true,
       },
       {
-        key: "mintStation",
+        key: "mintLocation",
         label: "Mint Location",
         description: "Where was the coin minted?",
         required: true,
@@ -69,7 +69,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
         required: true,
       },
       {
-        key: "weightG",
+        key: "weight",
         label: "Weight",
         description: "What is the weight in grams?",
         inputMode: "decimal",
@@ -108,7 +108,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
         required: true,
       },
       {
-        key: "historicalSignificance",
+        key: "history",
         label: "History",
         description: "Any interesting facts about this coin",
         multiline: true,
@@ -128,17 +128,9 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
         required: true,
       },
       {
-        key: "estimatedValueMinUsd",
-        label: "Estimated Price Range (min)",
-        description: "What is the current market value? (minimum)",
-        inputMode: "decimal",
-        required: true,
-      },
-      {
-        key: "estimatedValueMaxUsd",
-        label: "Estimated Price Range (max)",
-        description: "What is the current market value? (maximum)",
-        inputMode: "decimal",
+        key: "estimatedPriceRange",
+        label: "Estimated Price Range",
+        description: "What is the current market value?",
         required: true,
       },
     ],
@@ -155,20 +147,20 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
         required: true,
       },
       {
-        key: "conditionGrade",
+        key: "conditionOrGrade",
         label: "Condition or approx grade range",
         description: "What is the condition/grade of the coin?",
         required: true,
       },
       {
-        key: "overallGradingFeatures",
+        key: "errorsOrSpecialFeatures",
         label: "Errors / Special Features",
         description: "Any unique or rare features?",
         multiline: true,
         required: false,
       },
       {
-        key: "expertNotesRecommendations",
+        key: "recommendation",
         label: "Recommendation",
         description: "Should user sell or hold?",
         multiline: true,
@@ -186,20 +178,56 @@ const REQUIRED_KEYS: string[] = EVALUATION_FORM_SECTIONS.flatMap((s) =>
   s.fields.filter((f) => f.required).map((f) => f.key),
 );
 
+/** Legacy flat draft keys → current API-aligned keys. */
+const LEGACY_FORM_KEY_ALIASES: Record<string, string> = {
+  nameDesignation: "coinName",
+  currency: "currencyAndDenomination",
+  rulerGovt: "rulerOrGovt",
+  mintStation: "mintLocation",
+  weightG: "weight",
+  historicalSignificance: "history",
+  conditionGrade: "conditionOrGrade",
+  overallGradingFeatures: "errorsOrSpecialFeatures",
+  expertNotesRecommendations: "recommendation",
+};
+
 export function createInitialEvaluationFormState(): EvaluationFormState {
   const next: EvaluationFormState = {};
   for (const k of FORM_KEYS) next[k] = "";
   return next;
 }
 
-/** Migrate older drafts that used `periodReign` into `period`. */
+/** Migrate older drafts and legacy flat report content into current form keys. */
 export function normalizeEvaluationFormState(
   form: EvaluationFormState,
 ): EvaluationFormState {
-  const next = { ...form };
-  if (!(next.period ?? "").trim() && (next.periodReign ?? "").trim()) {
-    next.period = next.periodReign;
+  const next: EvaluationFormState = { ...createInitialEvaluationFormState() };
+
+  for (const key of FORM_KEYS) {
+    next[key] = form[key] ?? "";
   }
+
+  for (const [legacyKey, currentKey] of Object.entries(LEGACY_FORM_KEY_ALIASES)) {
+    if (!(next[currentKey] ?? "").trim() && (form[legacyKey] ?? "").trim()) {
+      next[currentKey] = form[legacyKey] ?? "";
+    }
+  }
+
+  if (!(next.period ?? "").trim() && (form.periodReign ?? "").trim()) {
+    next.period = form.periodReign ?? "";
+  }
+
+  if (!(next.rulerOrGovt ?? "").trim() && (form.periodReign ?? "").trim()) {
+    next.rulerOrGovt = form.periodReign ?? "";
+  }
+
+  const min = (form.estimatedValueMinUsd ?? "").trim();
+  const max = (form.estimatedValueMaxUsd ?? "").trim();
+  if (!(next.estimatedPriceRange ?? "").trim()) {
+    if (min && max) next.estimatedPriceRange = `${min} – ${max}`;
+    else if (min || max) next.estimatedPriceRange = min || max;
+  }
+
   return next;
 }
 
@@ -227,7 +255,6 @@ export function getSectionProgress(
   if (!sec) return { filled: 0, total: 0 };
 
   const requiredFields = sec.fields.filter((field) => field.required);
-  // Sections with no required fields: treat optional fill as progress signal.
   const tracked = requiredFields.length > 0 ? requiredFields : sec.fields;
   const total = tracked.length;
   const filled = tracked.filter(

@@ -1,4 +1,5 @@
 import { normalizeMongoId } from "@/lib/expert/format";
+import { contentFieldsToFormState } from "@/lib/expert/reportContentFields";
 import type { BackendReport } from "@/lib/expert/types";
 
 export type CertReport = {
@@ -17,50 +18,33 @@ export type CertReport = {
   priceGuideValue: string;
 };
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
 function asString(value: unknown, fallback = "—"): string {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" && !Number.isNaN(value)) return String(value);
   return fallback;
 }
 
-function formatUsdRange(min: string, max: string, average: string): string {
-  if (average !== "—") return `$${average}`;
-  if (min !== "—" && max !== "—") return `$${min} – $${max}`;
-  if (max !== "—") return `$${max}`;
-  if (min !== "—") return `$${min}`;
-  return "—";
-}
-
 export function mapReportToCertView(report: BackendReport): CertReport {
-  const content = asRecord(report.content);
-  const min = asString(content.estimatedValueMinUsd, "");
-  const max = asString(content.estimatedValueMaxUsd, "");
-  const average = asString(content.averageMarketValueUsd, "");
+  const form = contentFieldsToFormState(report.contentFields, report.content);
 
   return {
     requestId: normalizeMongoId(report.requestId) || asString(report.requestId),
     certificationNo: normalizeMongoId(report._id).slice(-8).toUpperCase() || "—",
-    pcgsNo: asString(content.nameDesignation),
+    pcgsNo: asString(form.coinName),
     dateMintmark: asString(
-      [content.yearOfMinting, content.periodReign].find(
+      [form.yearOfMinting, form.period, form.rulerOrGovt].find(
         (value) => typeof value === "string" && value.trim(),
       ),
     ),
-    denomination: asString(content.currency),
-    region: asString(content.issuer),
-    grade: asString(content.conditionGrade),
-    pedigree: asString(content.mintStation),
-    mintage: asString(content.circulation),
-    holderType: asString(content.material),
-    population: asString(content.rarityIndex),
-    popHigher: asString(content.rarity),
-    priceGuideValue: formatUsdRange(min, max, average),
+    denomination: asString(form.currencyAndDenomination),
+    region: asString(form.issuer),
+    grade: asString(form.conditionOrGrade),
+    pedigree: asString(form.mintLocation),
+    mintage: asString(form.rarity),
+    holderType: asString(form.material),
+    population: asString(form.errorsOrSpecialFeatures),
+    popHigher: asString(form.rarity),
+    priceGuideValue: asString(form.estimatedPriceRange, "—"),
   };
 }
 

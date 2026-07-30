@@ -1,18 +1,49 @@
 import { apiClient } from "@/lib/expert/apiClient";
 import {
-  createInitialEvaluationFormState,
   evaluateFormProgress,
+  normalizeEvaluationFormState,
+  createInitialEvaluationFormState,
 } from "@/lib/expert/evaluationForm";
 import { normalizeMongoId } from "@/lib/expert/format";
+import {
+  contentFieldsToFormState,
+  formToContentFields,
+} from "@/lib/expert/reportContentFields";
 import type {
   BackendReport,
   BackendRequest,
   EvaluationFormState,
   ExpertReportApiData,
+  ReportContentFields,
   RequestMediaItem,
 } from "@/lib/expert/types";
 
 const REPORT_BY_REQUEST_KEY = "coinzy_report_by_request";
+
+function draftCoinName(
+  form: EvaluationFormState | undefined,
+  fallback?: string,
+): string {
+  const fromForm = form?.coinName?.trim() ?? "";
+  const fromFallback = fallback?.trim() ?? "";
+  return fromForm || fromFallback || "Untitled draft";
+}
+
+function minimalDraftContentFields(
+  coinName: string,
+): Partial<ReportContentFields> {
+  return {
+    generalInfo: {
+      coinName,
+      currencyAndDenomination: "",
+      issuer: "",
+      period: "",
+      rulerOrGovt: "",
+      yearOfMinting: "",
+      mintLocation: "",
+    },
+  };
+}
 
 export class ExpertReportsError extends Error {
   constructor(
@@ -34,8 +65,7 @@ export type ReportAttachment = {
 };
 
 export type ReportWritePayload = {
-  coinTitle: string;
-  content: unknown;
+  contentFields: Partial<ReportContentFields>;
   attachments?: ReportAttachment[];
   isDraft: boolean;
 };
@@ -89,10 +119,10 @@ export function rememberReportForRequest(
     const normalizedRequestId = normalizeMongoId(requestId);
     const normalizedReportId = normalizeMongoId(reportId);
     if (!normalizedRequestId || !normalizedReportId) return;
-    const raw = sessionStorage.getItem(REPORT_BY_REQUEST_KEY);
+    const raw = localStorage.getItem(REPORT_BY_REQUEST_KEY);
     const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
     map[normalizedRequestId] = normalizedReportId;
-    sessionStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
+    localStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
   } catch {
     // ignore storage errors
   }
@@ -104,7 +134,7 @@ export function getStoredReportIdForRequest(
   if (typeof window === "undefined") return null;
   try {
     const normalizedRequestId = normalizeMongoId(requestId);
-    const raw = sessionStorage.getItem(REPORT_BY_REQUEST_KEY);
+    const raw = localStorage.getItem(REPORT_BY_REQUEST_KEY);
     if (!raw) return null;
     const map = JSON.parse(raw) as Record<string, string>;
     return map[normalizedRequestId] ?? null;
@@ -118,45 +148,31 @@ export function clearStoredReportIdForRequest(requestId: string): void {
   try {
     const normalizedRequestId = normalizeMongoId(requestId);
     if (!normalizedRequestId) return;
-    const raw = sessionStorage.getItem(REPORT_BY_REQUEST_KEY);
+    const raw = localStorage.getItem(REPORT_BY_REQUEST_KEY);
     if (!raw) return;
     const map = JSON.parse(raw) as Record<string, string>;
     delete map[normalizedRequestId];
-    sessionStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
+    localStorage.setItem(REPORT_BY_REQUEST_KEY, JSON.stringify(map));
   } catch {
     // ignore
   }
 }
 
-/** Map API report content into the evaluation form shape. */
-export function reportContentToFormState(
-  content: unknown,
-): EvaluationFormState {
-  const base = createInitialEvaluationFormState();
-  if (!content || typeof content !== "object" || Array.isArray(content)) {
-    return base;
-  }
-  const record = content as Record<string, unknown>;
-  for (const key of Object.keys(base)) {
-    const value = record[key];
-    if (typeof value === "string") base[key] = value;
-    else if (typeof value === "number" && Number.isFinite(value)) {
-      base[key] = String(value);
-    }
-  }
-  return base;
+/** Map API report into the evaluation form shape (prefers `contentFields`). */
+export function reportToFormState(report: BackendReport): EvaluationFormState {
+  return normalizeEvaluationFormState(
+    contentFieldsToFormState(report.contentFields, report.content),
+  );
 }
 
-export function resolveReportCoinTitle(
-  form: EvaluationFormState,
-  fallbackCoinName?: string,
-): string {
-  const fromForm =
-    typeof form.nameDesignation === "string"
-      ? form.nameDesignation.trim()
-      : "";
-  const fromCoin = fallbackCoinName?.trim() ?? "";
-  return fromForm || fromCoin || "Coin Evaluation";
+/** @deprecated Use `reportToFormState` — kept for callers passing raw content only. */
+export function reportContentToFormState(
+  content: unknown,
+  contentFields?: ReportContentFields | null,
+): EvaluationFormState {
+  return normalizeEvaluationFormState(
+    contentFieldsToFormState(contentFields, content),
+  );
 }
 
 export function isDraftReport(report: BackendReport | null | undefined): boolean {
@@ -183,17 +199,11 @@ export async function createReport(
     throw new ExpertReportsError("Invalid request id.", 400);
   }
 
-  const coinTitle = options.coinTitle.trim();
-  if (!coinTitle) {
-    throw new ExpertReportsError("Coin title is required.", 400);
-  }
-
   const { status, envelope } = await apiClient.post<ReportMutationApiData>(
     "/experts/reports",
     {
       requestId: normalizedRequestId,
-      coinTitle,
-      content: options.content,
+      contentFields: options.contentFields,
       attachments: options.attachments ?? [],
       isDraft: options.isDraft,
     },
@@ -228,14 +238,9 @@ export async function updateReport(
   }
 
   const body: Record<string, unknown> = {};
-  if (options.coinTitle !== undefined) {
-    const coinTitle = options.coinTitle.trim();
-    if (!coinTitle) {
-      throw new ExpertReportsError("Coin title is required.", 400);
-    }
-    body.coinTitle = coinTitle;
+  if (options.contentFields !== undefined) {
+    body.contentFields = options.contentFields;
   }
-  if (options.content !== undefined) body.content = options.content;
   if (options.attachments !== undefined) {
     body.attachments = options.attachments;
   }
@@ -268,18 +273,22 @@ export async function updateReport(
 export async function saveDraftReport(opts: {
   requestId: string;
   reportId?: string | null;
-  coinTitle: string;
-  content: unknown;
+  form: EvaluationFormState;
+  coinName?: string;
   attachments?: ReportAttachment[];
 }): Promise<BackendReport> {
   const attachments = opts.attachments ?? [];
-  const coinTitle = opts.coinTitle.trim() || "Coin Evaluation";
+  const hasFormContent = evaluateFormProgress(opts.form).filled > 0;
+  const contentFields = hasFormContent
+    ? formToContentFields(opts.form)
+    : minimalDraftContentFields(
+        draftCoinName(opts.form, opts.coinName),
+      );
 
   if (opts.reportId) {
     const data = await updateReport(opts.reportId, {
       requestId: opts.requestId,
-      coinTitle,
-      content: opts.content,
+      contentFields,
       attachments,
       isDraft: true,
     });
@@ -288,21 +297,18 @@ export async function saveDraftReport(opts: {
 
   try {
     const data = await createReport(opts.requestId, {
-      coinTitle,
-      content: opts.content,
+      contentFields,
       attachments,
       isDraft: true,
     });
     return data.report;
   } catch (err) {
-    // Draft may already exist on the server — resume via lookup + PUT.
     if (err instanceof ExpertReportsError && err.status === 409) {
-      const existing = await getReportByRequestId(opts.requestId);
-      if (existing && isDraftReport(existing)) {
-        const data = await updateReport(existing._id, {
+      const storedReportId = getStoredReportIdForRequest(opts.requestId);
+      if (storedReportId) {
+        const data = await updateReport(storedReportId, {
           requestId: opts.requestId,
-          coinTitle,
-          content: opts.content,
+          contentFields,
           attachments,
           isDraft: true,
         });
@@ -314,23 +320,68 @@ export async function saveDraftReport(opts: {
 }
 
 /**
+ * Ensure a server draft exists for an accepted request.
+ * Creates via POST when no report id is stored; otherwise GET/PUT.
+ */
+export async function ensureDraftReport(opts: {
+  requestId: string;
+  reportId?: string | null;
+  form?: EvaluationFormState;
+  coinName?: string;
+  attachments?: ReportAttachment[];
+}): Promise<BackendReport> {
+  const storedReportId =
+    opts.reportId ?? getStoredReportIdForRequest(opts.requestId);
+
+  if (storedReportId) {
+    try {
+      const existing = await getReport(storedReportId);
+      rememberFromReport(opts.requestId, existing);
+      if (!isDraftReport(existing)) return existing;
+
+      const form = opts.form ?? reportToFormState(existing);
+      if (opts.form && evaluateFormProgress(opts.form).filled > 0) {
+        return saveDraftReport({
+          requestId: opts.requestId,
+          reportId: storedReportId,
+          form: opts.form,
+          coinName: opts.coinName,
+          attachments: opts.attachments,
+        });
+      }
+      return existing;
+    } catch (err) {
+      if (err instanceof ExpertReportsError && err.status === 404) {
+        clearStoredReportIdForRequest(opts.requestId);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  const form = opts.form ?? createInitialEvaluationFormState();
+  return saveDraftReport({
+    requestId: opts.requestId,
+    form,
+    coinName: opts.coinName,
+    attachments: opts.attachments,
+  });
+}
+
+/**
  * Final submit: completes the request. Always sends `isDraft: false`.
  * Uses PUT when a draft id exists, otherwise POST.
  */
 export async function submitReport(
   requestId: string,
   options: {
-    coinTitle: string;
-    content: unknown;
+    form: EvaluationFormState;
     attachments?: ReportAttachment[];
     reportId?: string | null;
   },
 ) {
   const attachments = options.attachments ?? [];
-  const coinTitle = options.coinTitle.trim();
-  if (!coinTitle) {
-    throw new ExpertReportsError("Coin title is required.", 400);
-  }
+  const contentFields = formToContentFields(options.form);
 
   const reportId =
     options.reportId ?? getStoredReportIdForRequest(requestId);
@@ -339,13 +390,11 @@ export async function submitReport(
     try {
       return await updateReport(reportId, {
         requestId,
-        coinTitle,
-        content: options.content,
+        contentFields,
         attachments,
         isDraft: false,
       });
     } catch (err) {
-      // If draft id is stale, fall through to create submit.
       if (!(err instanceof ExpertReportsError && err.status === 404)) {
         throw err;
       }
@@ -353,8 +402,7 @@ export async function submitReport(
   }
 
   return createReport(requestId, {
-    coinTitle,
-    content: options.content,
+    contentFields,
     attachments,
     isDraft: false,
   });
@@ -382,46 +430,28 @@ export async function getReport(reportId: string) {
 }
 
 /**
- * Load the expert's report for a request.
- * Tries `GET /experts/reports/by-request/:requestId`, then session-stored id.
+ * Load a draft report using the stored report id for a request.
+ * There is no GET-by-request endpoint — returns null when unknown.
  */
-export async function getReportByRequestId(requestId: string) {
+export async function getReportForRequest(
+  requestId: string,
+): Promise<BackendReport | null> {
   const normalizedRequestId = normalizeMongoId(requestId);
-  if (!normalizedRequestId) {
-    throw new ExpertReportsError("Invalid request id.", 400);
-  }
-
-  const { status, envelope } = await apiClient.get<ExpertReportApiData>(
-    `/experts/reports/by-request/${encodeURIComponent(normalizedRequestId)}`,
-    { skipAuthHandling: true },
-  );
-
-  if (!envelope.error && envelope.data?.report) {
-    rememberFromReport(normalizedRequestId, envelope.data.report);
-    return envelope.data.report;
-  }
-
-  if (status !== 404) {
-    const storedReportId = getStoredReportIdForRequest(normalizedRequestId);
-    if (storedReportId) {
-      return getReport(storedReportId);
-    }
-    throw new ExpertReportsError(
-      envelope.message || "Unable to load report.",
-      status,
-    );
-  }
+  if (!normalizedRequestId) return null;
 
   const storedReportId = getStoredReportIdForRequest(normalizedRequestId);
-  if (storedReportId) {
-    try {
-      return await getReport(storedReportId);
-    } catch {
+  if (!storedReportId) return null;
+
+  try {
+    const report = await getReport(storedReportId);
+    rememberFromReport(normalizedRequestId, report);
+    return report;
+  } catch (err) {
+    if (err instanceof ExpertReportsError && err.status === 404) {
       clearStoredReportIdForRequest(normalizedRequestId);
     }
+    return null;
   }
-
-  throw new ExpertReportsError("Report not found for this request.", 404);
 }
 
 export async function resolveReport(
@@ -429,12 +459,17 @@ export async function resolveReport(
   requestId?: string | null,
 ) {
   if (reportId) return getReport(reportId);
-  if (requestId) return getReportByRequestId(requestId);
+  if (requestId) {
+    const report = await getReportForRequest(requestId);
+    if (report) return report;
+  }
   throw new ExpertReportsError("Report reference is missing.", 400);
 }
 
-/** Progress % from a server report's content object. */
+/** Progress % from a server report. */
 export function reportProgressPercent(report: BackendReport): number {
-  const form = reportContentToFormState(report.content);
+  const form = reportToFormState(report);
   return evaluateFormProgress(form).percent;
 }
+
+export { formToContentFields } from "@/lib/expert/reportContentFields";

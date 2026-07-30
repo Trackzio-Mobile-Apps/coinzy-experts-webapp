@@ -2,6 +2,7 @@
 
 import type { EvaluationFormState } from "@/lib/expert/types";
 import {
+  areRequiredFieldsComplete,
   createInitialEvaluationFormState,
   evaluateFormProgress,
   EVALUATION_FORM_SECTIONS,
@@ -19,13 +20,12 @@ import {
 import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn, isDeadlineExceeded, normalizeMongoId } from "@/lib/expert/format";
 import { DEADLINE_EXCEEDED_TOAST_KEY } from "@/lib/expert/constants";
 import {
-  ExpertReportsError,
-  getReportByRequestId,
+  ensureDraftReport,
+  getReportForRequest,
   getStoredReportIdForRequest,
   isDraftReport,
   mediaToReportAttachments,
-  reportContentToFormState,
-  resolveReportCoinTitle,
+  reportToFormState,
   saveDraftReport,
   submitReport,
 } from "@/lib/expert/reportsService";
@@ -377,6 +377,7 @@ function RequestHeader({
   detail,
   formId,
   showSubmit,
+  showSubmitButton,
   submitDisabled,
   showDeadlineCard = true,
   reassigning = false,
@@ -386,6 +387,7 @@ function RequestHeader({
   detail: EvaluationRequestDetail;
   formId: string;
   showSubmit: boolean;
+  showSubmitButton: boolean;
   submitDisabled: boolean;
   showDeadlineCard?: boolean;
   reassigning?: boolean;
@@ -416,14 +418,16 @@ function RequestHeader({
             >
               {reassigning ? "Reassigning…" : "Reassign"}
             </button>
-            <button
-              type="submit"
-              form={formId}
-              disabled={submitDisabled}
-              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Submit report →
-            </button>
+            {showSubmitButton ? (
+              <button
+                type="submit"
+                form={formId}
+                disabled={submitDisabled}
+                className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Submit report →
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -604,6 +608,10 @@ export function ExpertEvaluationRequestView({
 
   const submitBlocked =
     !detail.canSubmit || submitting || isDeadlineExceeded(detail.deadlineAt);
+  const showSubmitButton =
+    areRequiredFieldsComplete(form) &&
+    detail.canSubmit &&
+    !isDeadlineExceeded(detail.deadlineAt);
 
   useEffect(() => {
     draftReportIdRef.current = draftReportId;
@@ -625,10 +633,10 @@ export function ExpertEvaluationRequestView({
 
     void (async () => {
       try {
-        const report = await getReportByRequestId(detail.requestId);
+        const report = await getReportForRequest(detail.requestId);
         if (cancelled) return;
-        if (isDraftReport(report)) {
-          const serverForm = reportContentToFormState(report.content);
+        if (report && isDraftReport(report)) {
+          const serverForm = reportToFormState(report);
           const localForm = loadEvaluationDraft(detail.requestId);
           const serverFilled = evaluateFormProgress(serverForm).filled;
           const localFilled = localForm
@@ -646,10 +654,7 @@ export function ExpertEvaluationRequestView({
           setDraftReportId(normalizeMongoId(report._id) || null);
         }
       } catch (err) {
-        if (
-          !(err instanceof ExpertReportsError && err.status === 404) &&
-          process.env.NODE_ENV !== "production"
-        ) {
+        if (process.env.NODE_ENV !== "production") {
           console.warn("[expert] draft hydrate failed", err);
         }
       } finally {
@@ -681,8 +686,8 @@ export function ExpertEvaluationRequestView({
           const report = await saveDraftReport({
             requestId: detail.requestId,
             reportId: draftReportIdRef.current,
-            coinTitle: resolveReportCoinTitle(form, detail.coinName),
-            content: form,
+            form,
+            coinName: detail.coinName,
             attachments: mediaToReportAttachments(detail.media),
           });
           if (generation !== saveGenerationRef.current || submittedRef.current) {
@@ -723,14 +728,12 @@ export function ExpertEvaluationRequestView({
     const flushDraft = () => {
       if (submittedRef.current) return;
       const current = formRef.current;
-      const { filled } = evaluateFormProgress(current);
-      if (filled === 0) return;
       saveEvaluationDraft(detail.requestId, current);
-      void saveDraftReport({
+      void ensureDraftReport({
         requestId: detail.requestId,
         reportId: draftReportIdRef.current,
-        coinTitle: resolveReportCoinTitle(current, detail.coinName),
-        content: current,
+        form: current,
+        coinName: detail.coinName,
         attachments: mediaToReportAttachments(detail.media),
       })
         .then((report) => {
@@ -787,11 +790,8 @@ export function ExpertEvaluationRequestView({
     saveGenerationRef.current += 1;
     submittedRef.current = true;
     try {
-      const coinTitle = resolveReportCoinTitle(form, detail.coinName);
-
       await submitReport(detail.requestId, {
-        coinTitle,
-        content: form,
+        form,
         attachments: mediaToReportAttachments(detail.media),
         reportId: draftReportIdRef.current,
       });
@@ -814,6 +814,7 @@ export function ExpertEvaluationRequestView({
           detail={detail}
           formId={formId}
           showSubmit={false}
+          showSubmitButton={false}
           submitDisabled
         />
 
@@ -881,6 +882,7 @@ export function ExpertEvaluationRequestView({
           detail={detail}
           formId={formId}
           showSubmit={false}
+          showSubmitButton={false}
           submitDisabled
         />
 
@@ -920,6 +922,7 @@ export function ExpertEvaluationRequestView({
           detail={detail}
           formId={formId}
           showSubmit
+          showSubmitButton={showSubmitButton}
           submitDisabled={submitBlocked}
           reassigning={reassigning}
           reassignDisabled={reassignDisabled}
@@ -1068,13 +1071,15 @@ export function ExpertEvaluationRequestView({
                           ? "✓ Draft saved"
                           : "✓ Auto save on"}
                   </span>
-                  <button
-                    type="submit"
-                    disabled={submitBlocked}
-                    className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {submitting ? "Submitting…" : "Submit report →"}
-                  </button>
+                  {showSubmitButton ? (
+                    <button
+                      type="submit"
+                      disabled={submitBlocked}
+                      className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {submitting ? "Submitting…" : "Submit report →"}
+                    </button>
+                  ) : null}
                 </div>
               </form>
             </div>
