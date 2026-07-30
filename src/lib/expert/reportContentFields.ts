@@ -1,12 +1,15 @@
+import { asDisplayString } from "@/lib/expert/format";
+import {
+  formatEstimatedPriceRange,
+  splitEstimatedPriceRange,
+} from "@/lib/expert/evaluationForm";
 import type {
   EvaluationFormState,
   ReportContentFields,
 } from "@/lib/expert/types";
 
 function str(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return "";
+  return asDisplayString(value);
 }
 
 function section(
@@ -44,7 +47,10 @@ export function formToContentFields(
     },
     valueAndRarity: {
       rarity: str(form.rarity),
-      estimatedPriceRange: str(form.estimatedPriceRange),
+      estimatedPriceRange: formatEstimatedPriceRange(
+        str(form.estimatedPriceMin),
+        str(form.estimatedPriceMax),
+      ),
     },
     expertAssessment: {
       authenticity: str(form.authenticity),
@@ -90,10 +96,18 @@ export function contentFieldsToFormState(
     return "";
   };
 
-  const min = str(legacy.estimatedValueMinUsd);
-  const max = str(legacy.estimatedValueMaxUsd);
+  const min = str(legacy.estimatedValueMinUsd) || str(legacy.estimatedPriceMin);
+  const max = str(legacy.estimatedValueMaxUsd) || str(legacy.estimatedPriceMax);
+  const nestedRange = pick(
+    value,
+    "estimatedPriceRange",
+    "estimatedPriceRange",
+  );
   const legacyRange =
-    min && max ? `${min} – ${max}` : min || max || str(legacy.estimatedPriceRange);
+    min && max ? formatEstimatedPriceRange(min, max) : min || max || nestedRange;
+  const { min: rangeMin, max: rangeMax } = splitEstimatedPriceRange(
+    nestedRange || legacyRange,
+  );
 
   return {
     coinName: pick(general, "coinName", "nameDesignation", "coinName"),
@@ -123,11 +137,8 @@ export function contentFieldsToFormState(
     ),
     history: pick(design, "history", "historicalSignificance", "history"),
     rarity: pick(value, "rarity", "rarity"),
-    estimatedPriceRange: pick(
-      value,
-      "estimatedPriceRange",
-      "estimatedPriceRange",
-    ) || legacyRange,
+    estimatedPriceMin: min || rangeMin,
+    estimatedPriceMax: max || rangeMax,
     authenticity: pick(assessment, "authenticity", "authenticity"),
     conditionOrGrade: pick(
       assessment,

@@ -2,16 +2,17 @@ import type {
   EvaluationFormSectionDef,
   EvaluationFormState,
 } from "@/lib/expert/types";
+import { asDisplayString } from "@/lib/expert/format";
 
 /**
- * Evaluation form aligned to `ReportContentFields` (flat keys match API field names).
- * Progress + submit enforce `required: true` fields only (15 mandatory on submit).
+ * Evaluation form aligned to the expert report field spec and `ReportContentFields`.
+ * Progress + submit enforce `required: true` fields only (16 mandatory on submit).
  */
 export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
   {
     id: "general",
     stepLabel: "General",
-    title: "General information",
+    title: "General Information",
     fields: [
       {
         key: "coinName",
@@ -40,7 +41,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
       {
         key: "rulerOrGovt",
         label: "Ruler/Govt",
-        description: "Which ruler or government does it belong to?",
+        description: "Which ruler or time period does it belong to?",
         required: true,
       },
       {
@@ -60,7 +61,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
   {
     id: "physical",
     stepLabel: "Physical",
-    title: "Physical specifications",
+    title: "Physical Specifications",
     fields: [
       {
         key: "material",
@@ -91,7 +92,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
   {
     id: "design",
     stepLabel: "Design",
-    title: "Design details",
+    title: "Design Details",
     fields: [
       {
         key: "obverseDescription",
@@ -128,9 +129,17 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
         required: true,
       },
       {
-        key: "estimatedPriceRange",
-        label: "Estimated Price Range",
-        description: "What is the current market value?",
+        key: "estimatedPriceMin",
+        label: "Estimated Price Range (min)",
+        description: "What is the current market value? (minimum)",
+        inputMode: "decimal",
+        required: true,
+      },
+      {
+        key: "estimatedPriceMax",
+        label: "Estimated Price Range (max)",
+        description: "What is the current market value? (maximum)",
+        inputMode: "decimal",
         required: true,
       },
     ],
@@ -138,7 +147,7 @@ export const EVALUATION_FORM_SECTIONS: EvaluationFormSectionDef[] = [
   {
     id: "assessment",
     stepLabel: "Assessment",
-    title: "Expert assessment",
+    title: "Expert Assessment",
     fields: [
       {
         key: "authenticity",
@@ -189,6 +198,8 @@ const LEGACY_FORM_KEY_ALIASES: Record<string, string> = {
   conditionGrade: "conditionOrGrade",
   overallGradingFeatures: "errorsOrSpecialFeatures",
   expertNotesRecommendations: "recommendation",
+  estimatedValueMinUsd: "estimatedPriceMin",
+  estimatedValueMaxUsd: "estimatedPriceMax",
 };
 
 export function createInitialEvaluationFormState(): EvaluationFormState {
@@ -204,12 +215,12 @@ export function normalizeEvaluationFormState(
   const next: EvaluationFormState = { ...createInitialEvaluationFormState() };
 
   for (const key of FORM_KEYS) {
-    next[key] = form[key] ?? "";
+    next[key] = asDisplayString(form[key]);
   }
 
   for (const [legacyKey, currentKey] of Object.entries(LEGACY_FORM_KEY_ALIASES)) {
-    if (!(next[currentKey] ?? "").trim() && (form[legacyKey] ?? "").trim()) {
-      next[currentKey] = form[legacyKey] ?? "";
+    if (!(next[currentKey] ?? "").trim()) {
+      next[currentKey] = asDisplayString(form[legacyKey]);
     }
   }
 
@@ -221,14 +232,52 @@ export function normalizeEvaluationFormState(
     next.rulerOrGovt = form.periodReign ?? "";
   }
 
-  const min = (form.estimatedValueMinUsd ?? "").trim();
-  const max = (form.estimatedValueMaxUsd ?? "").trim();
-  if (!(next.estimatedPriceRange ?? "").trim()) {
-    if (min && max) next.estimatedPriceRange = `${min} – ${max}`;
-    else if (min || max) next.estimatedPriceRange = min || max;
+  const legacyMin =
+    (form.estimatedValueMinUsd ?? form.estimatedPriceMin ?? "").trim();
+  const legacyMax =
+    (form.estimatedValueMaxUsd ?? form.estimatedPriceMax ?? "").trim();
+  if (!(next.estimatedPriceMin ?? "").trim() && legacyMin) {
+    next.estimatedPriceMin = legacyMin;
+  }
+  if (!(next.estimatedPriceMax ?? "").trim() && legacyMax) {
+    next.estimatedPriceMax = legacyMax;
+  }
+
+  const combinedRange = (form.estimatedPriceRange ?? "").trim();
+  if (combinedRange && (!(next.estimatedPriceMin ?? "").trim() || !(next.estimatedPriceMax ?? "").trim())) {
+    const { min, max } = splitEstimatedPriceRange(combinedRange);
+    if (!(next.estimatedPriceMin ?? "").trim() && min) next.estimatedPriceMin = min;
+    if (!(next.estimatedPriceMax ?? "").trim() && max) next.estimatedPriceMax = max;
   }
 
   return next;
+}
+
+/** Split API `estimatedPriceRange` into min/max form fields. */
+export function splitEstimatedPriceRange(range: string): {
+  min: string;
+  max: string;
+} {
+  const trimmed = range.trim();
+  if (!trimmed) return { min: "", max: "" };
+
+  const parts = trimmed.split(/\s*[–—-]\s*/);
+  if (parts.length >= 2) {
+    return {
+      min: parts[0]?.trim() ?? "",
+      max: parts.slice(1).join("-").trim(),
+    };
+  }
+
+  return { min: trimmed, max: "" };
+}
+
+/** Combine min/max form fields into API `estimatedPriceRange`. */
+export function formatEstimatedPriceRange(min: string, max: string): string {
+  const a = min.trim();
+  const b = max.trim();
+  if (a && b) return `${a} – ${b}`;
+  return a || b;
 }
 
 export function evaluateFormProgress(form: EvaluationFormState): {

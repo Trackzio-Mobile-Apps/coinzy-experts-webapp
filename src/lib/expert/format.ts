@@ -42,6 +42,19 @@ export function normalizeMongoId(value: unknown): string {
   return "";
 }
 
+/** Coerce API values to a safe display string (never returns objects). */
+export function asDisplayString(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") {
+    const asId = normalizeMongoId(value);
+    if (asId) return asId;
+  }
+  return "";
+}
+
 export function getExpertGreeting(firstName: string): string {
   const h = new Date().getHours();
   if (h < 12) return `Good morning, ${firstName} 👋`;
