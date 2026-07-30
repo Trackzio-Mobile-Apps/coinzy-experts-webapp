@@ -92,7 +92,7 @@ export function ExpertToast({
       role={isError ? "alert" : "status"}
       aria-live={isError ? "assertive" : "polite"}
       aria-hidden={!open}
-      className={`fixed z-[120] w-fit max-w-[min(26rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border/60 bg-surface shadow-xl transition-[opacity,transform] duration-200 ease-out ${
+      className={`fixed z-[120] min-w-[22rem] max-w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border/60 bg-surface shadow-xl transition-[opacity,transform] duration-200 ease-out ${
         positionClass[variant]
       } ${
         open
@@ -100,23 +100,25 @@ export function ExpertToast({
           : "pointer-events-none translate-y-3 opacity-0"
       }`}
     >
-      <div className={`absolute inset-y-0 left-0 w-1 ${accentClass[variant]}`} />
-      <div className="flex items-center gap-3 py-3 pr-3 pl-4">
-        {variant === "error" ? (
-          <ErrorIcon />
-        ) : variant === "info" ? (
-          <InfoIcon />
-        ) : (
-          <SuccessIcon />
-        )}
-        <div className="min-w-0 flex-1">
+      <div className={`absolute inset-y-0 left-0 w-1.5 ${accentClass[variant]}`} />
+      <div className="flex items-start gap-3.5 py-3.5 pr-3.5 pl-5">
+        <span className="mt-0.5">
+          {variant === "error" ? (
+            <ErrorIcon />
+          ) : variant === "info" ? (
+            <InfoIcon />
+          ) : (
+            <SuccessIcon />
+          )}
+        </span>
+        <div className="min-w-0 flex-1 pt-px">
           {title ? (
-            <p className="text-sm font-semibold text-text">{title}</p>
+            <p className="text-sm font-semibold leading-snug text-text">{title}</p>
           ) : null}
           <p
             className={`text-sm ${
               title
-                ? "mt-0.5 font-normal leading-relaxed text-text-muted"
+                ? "mt-1 font-normal leading-relaxed text-text-muted"
                 : "font-semibold leading-snug text-text"
             }`}
           >
@@ -126,7 +128,7 @@ export function ExpertToast({
         <button
           type="button"
           onClick={onClose}
-          className="shrink-0 self-start text-lg font-normal leading-none text-text-muted transition-colors hover:text-text"
+          className="-mr-1 shrink-0 rounded-md p-1 text-lg font-normal leading-none text-text-muted transition-colors hover:bg-input-bg hover:text-text"
           aria-label="Dismiss notification"
         >
           ×

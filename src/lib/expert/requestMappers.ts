@@ -178,6 +178,22 @@ function parseMediaList(
   return media;
 }
 
+/** Media from report attachments and/or the original request payload. */
+export function mediaFromReportSources(
+  coinName: string,
+  attachments: unknown[] | undefined,
+  requestPayload?: unknown,
+): RequestMediaItem[] {
+  if (attachments?.length) {
+    const fromAttachments = parseMediaList(attachments, coinName);
+    if (fromAttachments.length > 0) return fromAttachments;
+  }
+  if (requestPayload) {
+    return parseRequestPayload(requestPayload).media;
+  }
+  return [];
+}
+
 export function parseRequestPayload(payload: unknown) {
   const data = asRecord(payload);
   const coinName = asString(

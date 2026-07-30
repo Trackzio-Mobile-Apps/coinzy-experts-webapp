@@ -86,7 +86,9 @@ export function ExpertQueuePageClient() {
       />
       <ExpertToast
         open={showNewRequestToast}
+        title="New request"
         message={newRequestMessage}
+        variant="info"
         onClose={closeNewRequestToast}
       />
     </ExpertDashboardSection>

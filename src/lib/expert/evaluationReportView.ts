@@ -9,7 +9,15 @@ import {
   normalizeMongoId,
 } from "@/lib/expert/format";
 import { contentFieldsToFormState } from "@/lib/expert/reportContentFields";
-import type { BackendReport, EvaluationFormState } from "@/lib/expert/types";
+import { mediaFromReportSources } from "@/lib/expert/requestMappers";
+import type {
+  BackendReport,
+  EvaluationFormState,
+  RequestMediaItem,
+} from "@/lib/expert/types";
+
+export const EVALUATION_REPORT_BRAND = "Coinzy AI";
+export const EVALUATION_REPORT_SUBTITLE = "Expert Evaluation Report";
 
 export type EvaluationReportFieldRow = {
   label: string;
@@ -28,8 +36,25 @@ export type EvaluationReportDisplay = {
   coinTitle: string;
   status: string;
   submittedAt: string | null;
+  media: RequestMediaItem[];
   sections: EvaluationReportSection[];
 };
+
+export function groupReportMedia(
+  media: RequestMediaItem[],
+): [string, RequestMediaItem[]][] {
+  const groups = new Map<string, RequestMediaItem[]>();
+  for (const item of media) {
+    const label = item.group?.trim() || "Other";
+    const bucket = groups.get(label);
+    if (bucket) {
+      bucket.push(item);
+    } else {
+      groups.set(label, [item]);
+    }
+  }
+  return Array.from(groups.entries());
+}
 
 function displayValue(value: unknown): string {
   const text = asDisplayString(value);
@@ -58,10 +83,15 @@ function buildMarketSection(form: EvaluationFormState): EvaluationReportSection 
 /** Read-only report sections from API `contentFields`. */
 export function buildEvaluationReportDisplay(
   report: BackendReport,
+  options?: { requestPayload?: unknown },
 ): EvaluationReportDisplay {
   const form = normalizeEvaluationFormState(
     contentFieldsToFormState(report.contentFields, report.content),
   );
+  const coinTitle =
+    asDisplayString(report.coinTitle) ||
+    asDisplayString(form.coinName) ||
+    "Coin Evaluation";
 
   const sections: EvaluationReportSection[] = EVALUATION_FORM_SECTIONS.map(
     (section) => {
@@ -84,12 +114,14 @@ export function buildEvaluationReportDisplay(
     requestId:
       normalizeMongoId(report.requestId) || asDisplayString(report.requestId),
     requestDisplayId: asDisplayString(report.requestDisplayId) || null,
-    coinTitle:
-      asDisplayString(report.coinTitle) ||
-      asDisplayString(form.coinName) ||
-      "Coin Evaluation",
+    coinTitle,
     status: asDisplayString(report.status) || "—",
     submittedAt: normalizeIsoDate(report.submittedAt),
+    media: mediaFromReportSources(
+      coinTitle,
+      report.attachments,
+      options?.requestPayload,
+    ),
     sections,
   };
 }

@@ -7,7 +7,8 @@ import {
   type EvaluationReportDisplay,
 } from "@/lib/expert/evaluationReportView";
 import { downloadEvaluationReportPdf } from "@/lib/expert/evaluationReportExport";
-import { buildExpertHistoryHref, type HistoryPeriodFilter } from "@/lib/expert/format";
+import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
+import { buildExpertHistoryHref, normalizeMongoId, type HistoryPeriodFilter } from "@/lib/expert/format";
 import { resolveReport } from "@/lib/expert/reportsService";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -26,6 +27,7 @@ export function CertReportModal({
   period,
 }: CertReportModalProps) {
   const router = useRouter();
+  const { requests } = useExpertPanelData();
   const [report, setReport] = useState<EvaluationReportDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,16 @@ export function CertReportModal({
       try {
         const backendReport = await resolveReport(reportId, reportRequestId);
         if (cancelled) return;
-        setReport(buildEvaluationReportDisplay(backendReport));
+        const request = requests.find(
+          (item) =>
+            normalizeMongoId(item._id) ===
+            normalizeMongoId(backendReport.requestId),
+        );
+        setReport(
+          buildEvaluationReportDisplay(backendReport, {
+            requestPayload: request?.payload,
+          }),
+        );
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -59,7 +70,7 @@ export function CertReportModal({
     return () => {
       cancelled = true;
     };
-  }, [reportId, reportRequestId]);
+  }, [reportId, reportRequestId, requests]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

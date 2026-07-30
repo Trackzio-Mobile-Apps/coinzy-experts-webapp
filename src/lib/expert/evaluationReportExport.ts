@@ -1,5 +1,11 @@
 import type { EvaluationReportDisplay } from "@/lib/expert/evaluationReportView";
-import { formatReportSubmittedAt } from "@/lib/expert/evaluationReportView";
+import {
+  EVALUATION_REPORT_BRAND,
+  EVALUATION_REPORT_SUBTITLE,
+  formatReportSubmittedAt,
+  groupReportMedia,
+} from "@/lib/expert/evaluationReportView";
+import type { RequestMediaItem } from "@/lib/expert/types";
 
 function escapeHtml(value: string): string {
   return value
@@ -35,6 +41,38 @@ function reportSectionsHtml(report: EvaluationReportDisplay): string {
     .join("");
 }
 
+function reportMediaHtml(report: EvaluationReportDisplay): string {
+  if (report.media.length === 0) return "";
+
+  const groups = groupReportMedia(report.media)
+    .map(([group, items]) => {
+      const tiles = items
+        .map((item) => {
+          if (item.kind === "image") {
+            return `<img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt)}" class="media-tile" loading="lazy" />`;
+          }
+          if (item.poster) {
+            return `<div class="media-video"><img src="${escapeHtml(item.poster)}" alt="${escapeHtml(item.alt)}" class="media-tile" loading="lazy" /><span class="media-play">▶</span></div>`;
+          }
+          return `<div class="media-video media-video-fallback"><span>Video</span></div>`;
+        })
+        .join("");
+
+      return `
+      <div class="media-group">
+        <p class="media-group-label">${escapeHtml(group)} (${items.length})</p>
+        <div class="media-grid">${tiles}</div>
+      </div>`;
+    })
+    .join("");
+
+  return `
+    <section class="media-section">
+      <h2>Coin images &amp; videos</h2>
+      ${groups}
+    </section>`;
+}
+
 function reportDocumentStyles(): string {
   return `
     * { box-sizing: border-box; }
@@ -56,21 +94,96 @@ function reportDocumentStyles(): string {
       border-bottom: 1px solid #e5e2dc;
       padding-bottom: 24px;
     }
+    .report-header-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .report-logo {
+      display: block;
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: #111111;
+    }
+    .brand-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111111;
+      margin: 0;
+      line-height: 1.3;
+    }
     .brand {
       font-size: 12px;
       font-weight: 600;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: #7b3f40;
-      margin: 0;
+      margin: 2px 0 0;
     }
     .title {
       font-size: 24px;
       font-weight: 600;
       letter-spacing: -0.025em;
       color: #111111;
-      margin: 8px 0 0;
+      margin: 20px 0 0;
       line-height: 1.3;
+    }
+    .media-section { margin-top: 32px; }
+    .media-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 12px;
+      color: #111111;
+    }
+    .media-group { margin-bottom: 16px; }
+    .media-group:last-child { margin-bottom: 0; }
+    .media-group-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #6b7280;
+      margin: 0 0 8px;
+    }
+    .media-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .media-tile {
+      width: 96px;
+      height: 96px;
+      border-radius: 8px;
+      border: 1px solid #e5e2dc;
+      object-fit: cover;
+      background: #f0eeea;
+    }
+    .media-video {
+      position: relative;
+      width: 96px;
+      height: 96px;
+    }
+    .media-video-fallback {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: 1px solid #e5e2dc;
+      background: #111111;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .media-play {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.28);
+      color: #ffffff;
+      font-size: 12px;
+      border-radius: 8px;
     }
     .sections { margin-top: 32px; }
     .report-section { margin-bottom: 32px; page-break-inside: avoid; }
@@ -136,6 +249,48 @@ export function evaluationReportPdfFilename(
   return `${evaluationReportBaseFilename(report)}.pdf`;
 }
 
+const REPORT_LOGO_PATH = "/coinzy-logo.png";
+const REPORT_LOGO_SIZE_MM = 14;
+const REPORT_MEDIA_PROXY_PATH = "/api/expert/media";
+
+function reportMediaFetchUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith("/")) return trimmed;
+  if (trimmed.startsWith("data:")) return trimmed;
+  return `${REPORT_MEDIA_PROXY_PATH}?url=${encodeURIComponent(trimmed)}`;
+}
+
+function imageFormatFromBlob(blob: Blob, dataUrl: string): "PNG" | "JPEG" {
+  if (blob.type.includes("png")) return "PNG";
+  if (blob.type.includes("jpeg") || blob.type.includes("jpg")) return "JPEG";
+  if (dataUrl.startsWith("data:image/png")) return "PNG";
+  return "JPEG";
+}
+
+async function loadReportLogoDataUrl(): Promise<string | null> {
+  try {
+    const response = await fetch(REPORT_LOGO_PATH);
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("Unable to read logo."));
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** Standalone HTML document matching the modal report layout. */
 export function buildEvaluationReportPrintHtml(
   report: EvaluationReportDisplay,
@@ -154,9 +309,16 @@ export function buildEvaluationReportPrintHtml(
 <body>
   <article class="report">
     <header class="report-header">
-      <p class="brand">Coinzy Expert Evaluation Report</p>
+      <div class="report-header-top">
+        <img src="${REPORT_LOGO_PATH}" alt="${escapeHtml(EVALUATION_REPORT_BRAND)}" class="report-logo" />
+        <div>
+          <p class="brand-name">${escapeHtml(EVALUATION_REPORT_BRAND)}</p>
+          <p class="brand">${escapeHtml(EVALUATION_REPORT_SUBTITLE.toUpperCase())}</p>
+        </div>
+      </div>
       <h1 class="title">${escapeHtml(report.coinTitle)}</h1>
     </header>
+    ${reportMediaHtml(report)}
     <div class="sections">
       ${reportSectionsHtml(report)}
     </div>
@@ -175,9 +337,98 @@ const PDF_COLORS = {
   white: [255, 255, 255] as [number, number, number],
 };
 
+async function loadRemoteImageDataUrl(
+  url: string,
+): Promise<{ dataUrl: string; format: "PNG" | "JPEG"; width: number; height: number } | null> {
+  const fetchTargets = url.startsWith("http")
+    ? [reportMediaFetchUrl(url), url]
+    : [reportMediaFetchUrl(url)];
+
+  for (const fetchUrl of fetchTargets) {
+    try {
+      const response = await fetch(fetchUrl, { credentials: "same-origin" });
+      if (!response.ok) continue;
+
+      const blob = await response.blob();
+      if (!blob.type.startsWith("image/") && !blob.type.includes("octet-stream")) {
+        continue;
+      }
+
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string") resolve(reader.result);
+          else reject(new Error("Unable to read image."));
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+
+      const dimensions = await new Promise<{ width: number; height: number } | null>(
+        (resolve) => {
+          const image = new Image();
+          image.onload = () =>
+            resolve({ width: image.naturalWidth, height: image.naturalHeight });
+          image.onerror = () => resolve(null);
+          image.src = dataUrl;
+        },
+      );
+      if (!dimensions || dimensions.width === 0 || dimensions.height === 0) {
+        continue;
+      }
+
+      return {
+        dataUrl,
+        format: imageFormatFromBlob(blob, dataUrl),
+        ...dimensions,
+      };
+    } catch {
+      // Try next source (direct URL fallback).
+    }
+  }
+
+  return null;
+}
+
+type LoadedReportImage = {
+  dataUrl: string;
+  format: "PNG" | "JPEG";
+  width: number;
+  height: number;
+  group: string;
+  label: string;
+};
+
+async function loadReportImages(
+  media: RequestMediaItem[],
+): Promise<LoadedReportImage[]> {
+  const loaded: LoadedReportImage[] = [];
+
+  for (const item of media) {
+    const src =
+      item.kind === "image"
+        ? item.src
+        : item.poster?.trim() || "";
+    if (!src) continue;
+
+    const image = await loadRemoteImageDataUrl(src);
+    if (!image) continue;
+
+    loaded.push({
+      ...image,
+      group: item.group?.trim() || "Other",
+      label: item.alt || item.group || "Coin media",
+    });
+  }
+
+  return loaded;
+}
+
 function buildEvaluationReportPdfDocument(
   report: EvaluationReportDisplay,
   jsPDF: typeof import("jspdf").jsPDF,
+  logoDataUrl: string | null,
+  images: LoadedReportImage[],
 ): import("jspdf").jsPDF {
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
 
@@ -187,18 +438,38 @@ function buildEvaluationReportPdfDocument(
   const contentWidth = pageWidth - margin * 2;
   let y = margin;
 
+  const headerTextX = logoDataUrl
+    ? margin + REPORT_LOGO_SIZE_MM + 4
+    : margin;
+
+  if (logoDataUrl) {
+    pdf.addImage(
+      logoDataUrl,
+      "PNG",
+      margin,
+      y,
+      REPORT_LOGO_SIZE_MM,
+      REPORT_LOGO_SIZE_MM,
+    );
+  }
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(13);
+  pdf.setTextColor(...PDF_COLORS.text);
+  pdf.text(EVALUATION_REPORT_BRAND, headerTextX, y + 5);
+
+  pdf.setFontSize(9);
+  pdf.setTextColor(...PDF_COLORS.primary);
+  pdf.text(EVALUATION_REPORT_SUBTITLE.toUpperCase(), headerTextX, y + 10);
+
+  y += logoDataUrl ? REPORT_LOGO_SIZE_MM + 6 : 8;
+
   const ensureSpace = (height: number) => {
     if (y + height > pageHeight - margin) {
       pdf.addPage();
       y = margin;
     }
   };
-
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(10);
-  pdf.setTextColor(...PDF_COLORS.primary);
-  pdf.text("COINZY EXPERT EVALUATION REPORT", margin, y);
-  y += 7;
 
   pdf.setFontSize(18);
   pdf.setTextColor(...PDF_COLORS.text);
@@ -213,6 +484,92 @@ function buildEvaluationReportPdfDocument(
   pdf.setLineWidth(0.3);
   pdf.line(margin, y, pageWidth - margin, y);
   y += 10;
+
+  if (images.length > 0) {
+    ensureSpace(14);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(12);
+    pdf.setTextColor(...PDF_COLORS.text);
+    pdf.text("Coin images & videos", margin, y);
+    y += 7;
+
+    const tileMm = 28;
+    const gapMm = 3;
+    const tilesPerRow = Math.max(
+      1,
+      Math.floor((contentWidth + gapMm) / (tileMm + gapMm)),
+    );
+
+    let currentGroup = "";
+    let col = 0;
+
+    for (const image of images) {
+      if (image.group !== currentGroup) {
+        if (col > 0) {
+          y += tileMm + gapMm;
+          col = 0;
+        }
+        currentGroup = image.group;
+        ensureSpace(10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.setTextColor(...PDF_COLORS.textMuted);
+        pdf.text(currentGroup, margin, y);
+        y += 5;
+      }
+
+      if (col === tilesPerRow) {
+        y += tileMm + gapMm;
+        col = 0;
+      }
+
+      ensureSpace(tileMm + 4);
+
+      const x = margin + col * (tileMm + gapMm);
+      const aspect = image.width / image.height;
+      let drawWidth = tileMm;
+      let drawHeight = tileMm;
+      if (aspect > 1) {
+        drawHeight = tileMm / aspect;
+      } else {
+        drawWidth = tileMm * aspect;
+      }
+
+      pdf.addImage(
+        image.dataUrl,
+        image.format,
+        x,
+        y,
+        drawWidth,
+        drawHeight,
+      );
+
+      col += 1;
+    }
+
+    if (col > 0) {
+      y += tileMm + 6;
+    }
+  }
+
+  for (const item of report.media) {
+    if (item.kind !== "video") continue;
+    if (item.poster?.trim()) continue;
+    ensureSpace(6);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(...PDF_COLORS.textMuted);
+    pdf.text(
+      `Video: ${item.group?.trim() || "Attached"}`,
+      margin,
+      y,
+    );
+    y += 5;
+  }
+
+  if (report.media.some((item) => item.kind === "video" && !item.poster?.trim())) {
+    y += 4;
+  }
 
   const labelWidth = contentWidth * 0.38;
   const valueX = margin + labelWidth + 3;
@@ -276,8 +633,17 @@ function buildEvaluationReportPdfDocument(
 export async function downloadEvaluationReportPdf(
   report: EvaluationReportDisplay,
 ): Promise<void> {
-  const { jsPDF } = await import("jspdf");
-  const pdf = buildEvaluationReportPdfDocument(report, jsPDF);
+  const [{ jsPDF }, logoDataUrl, images] = await Promise.all([
+    import("jspdf"),
+    loadReportLogoDataUrl(),
+    loadReportImages(report.media),
+  ]);
+  const pdf = buildEvaluationReportPdfDocument(
+    report,
+    jsPDF,
+    logoDataUrl,
+    images,
+  );
   pdf.save(evaluationReportPdfFilename(report));
 }
 
