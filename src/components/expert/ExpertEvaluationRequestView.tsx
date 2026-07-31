@@ -21,7 +21,14 @@ import {
   loadEvaluationDraft,
   saveEvaluationDraft,
 } from "@/lib/expert/evaluationDraftStorage";
-import { formatDeadlineDue, formatDeadlineRemaining, formatReceivedOn, isDeadlineExceeded, normalizeMongoId } from "@/lib/expert/format";
+import {
+  formatDeadlineDue,
+  formatDeadlineRemaining,
+  formatQueueRequestIdLabel,
+  formatReceivedOn,
+  isDeadlineExceeded,
+  normalizeMongoId,
+} from "@/lib/expert/format";
 import { DEADLINE_EXCEEDED_TOAST_KEY } from "@/lib/expert/constants";
 import {
   ensureDraftReport,
@@ -256,6 +263,7 @@ function MediaAndNotes({
 }
 
 function RequestBreadcrumb({ displayId }: { displayId: string }) {
+  const requestLabel = formatQueueRequestIdLabel(displayId);
   return (
     <nav
       aria-label="Breadcrumb"
@@ -282,9 +290,7 @@ function RequestBreadcrumb({ displayId }: { displayId: string }) {
       <span aria-hidden className="text-border">
         &gt;
       </span>
-      <span className="font-mono font-semibold text-text">
-        REQ-ID {displayId}
-      </span>
+      <span className="font-mono font-semibold text-text">{requestLabel}</span>
     </nav>
   );
 }
@@ -396,7 +402,7 @@ function RequestHeader({
       <div className="flex flex-col gap-4 rounded-xl border border-border/60 bg-surface px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="mb-1 font-mono text-xs text-text-muted">
-            REQ-ID {detail.displayId}
+            {formatQueueRequestIdLabel(detail.displayId)}
           </p>
           <h1 className="text-xl font-semibold tracking-tight text-text sm:text-[1.35rem]">
             Coin identification & evaluation request
