@@ -224,13 +224,55 @@ export function formatRequestId(id: string): string {
   return id.length > 8 ? id.slice(-8).toUpperCase() : id.toUpperCase();
 }
 
-/** Queue card label, e.g. `REQ-ID 00016`. */
+/** Queue / detail label from API `displayId`, e.g. `REQ-ID 00016` or `EV-KUBGCWV5`. */
 export function formatQueueRequestIdLabel(displayId: string): string {
   const trimmed = displayId.trim();
   if (!trimmed) return "REQ-ID —";
+
+  if (/^REQ-ID\s+/i.test(trimmed)) {
+    const suffix = trimmed.replace(/^REQ-ID\s+/i, "").trim();
+    if (/^\d+$/.test(suffix)) {
+      return `REQ-ID ${suffix.padStart(5, "0")}`;
+    }
+    return `REQ-ID ${suffix.toUpperCase()}`;
+  }
+
+  const upper = trimmed.toUpperCase().replace(/_/g, "-");
+
+  if (/^EV-[A-Z0-9]+$/.test(upper)) {
+    return upper;
+  }
+
+  if (/^REQ-[A-Z0-9]+$/.test(upper)) {
+    const suffix = upper.slice(4);
+    if (/^\d+$/.test(suffix)) {
+      return `REQ-ID ${suffix.padStart(5, "0")}`;
+    }
+    return `REQ-ID ${suffix}`;
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return `REQ-ID ${trimmed.padStart(5, "0")}`;
+  }
+
+  if (/^[a-f0-9]{24}$/i.test(trimmed)) {
+    return `REQ-ID ${trimmed.slice(-8).toUpperCase()}`;
+  }
+
+  if (/^[a-f0-9]{8}$/i.test(trimmed)) {
+    return `REQ-ID ${upper}`;
+  }
+
+  if (/[A-Za-z]/.test(trimmed)) {
+    return upper.includes("-") ? upper : `REQ-ID ${upper}`;
+  }
+
   const digits = trimmed.replace(/\D/g, "");
-  const tail = (digits || trimmed).slice(-5).padStart(5, "0");
-  return `REQ-ID ${tail}`;
+  if (digits) {
+    return `REQ-ID ${digits.slice(-5).padStart(5, "0")}`;
+  }
+
+  return `REQ-ID ${upper}`;
 }
 
 /** Whole-day deadline label for queue cards, e.g. `3 days`. */

@@ -273,22 +273,49 @@ function resolveCoinName(request: BackendRequest): string {
   return parseRequestPayload(request.payload).coinName;
 }
 
+function readDisplayIdField(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  return "";
+}
+
 function resolveDisplayId(request: BackendRequest): string {
-  const displayId =
-    typeof request.displayId === "string" ? request.displayId.trim() : "";
-  if (displayId) return displayId;
+  const record = request as Record<string, unknown>;
+  for (const key of [
+    "displayId",
+    "display_id",
+    "requestDisplayId",
+    "request_display_id",
+  ]) {
+    const value = readDisplayIdField(record[key]);
+    if (value) return value;
+  }
+
   const id = normalizeMongoId(request._id);
   return id.length > 8 ? id.slice(-8).toUpperCase() : id.toUpperCase();
 }
 
 function resolveHistoryRequestLabel(request: BackendRequest): string {
   const displayId = resolveDisplayId(request);
+  if (/^REQ-ID\s+/i.test(displayId)) {
+    return displayId.replace(/^REQ-ID\s+/i, "REQ-ID ").toUpperCase();
+  }
   if (/^(REQ|EV)[-_]/i.test(displayId)) {
     return displayId.toUpperCase().replace("_", "-");
   }
+  if (/^\d+$/.test(displayId)) {
+    return `REQ-${displayId.padStart(5, "0")}`;
+  }
   const digits = displayId.replace(/\D/g, "");
-  const tail = (digits || displayId).slice(-5).padStart(5, "0").toUpperCase();
-  return `REQ-${tail}`;
+  if (digits) {
+    const tail = digits.slice(-5).padStart(5, "0");
+    return `REQ-${tail}`;
+  }
+  return displayId.toUpperCase();
 }
 
 function isRequestTimeExtended(request: BackendRequest): boolean {
