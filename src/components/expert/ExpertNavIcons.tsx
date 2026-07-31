@@ -14,15 +14,22 @@ const navIconProps = {
 
 export type ExpertNavIconKind = "queue" | "drafts" | "history" | "profile";
 
-/** Queue — rounded document with three list lines. */
-export function ExpertQueueNavIcon(props: SVGProps<SVGSVGElement>) {
+/** Queue — Figma sidebar asset (icon before "Queue" label only). */
+export function ExpertQueueNavIcon({
+  className,
+}: {
+  className?: string;
+}) {
   return (
-    <svg {...navIconProps} {...props}>
-      <rect x="5" y="4" width="14" height="16" rx="2.75" />
-      <path d="M8.5 9h3.25" />
-      <path d="M8.5 12h7.75" />
-      <path d="M8.5 15h5" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element -- static nav asset from /public
+    <img
+      src="/expert-nav-queue-icon.png"
+      alt=""
+      width={18}
+      height={18}
+      className={`h-[18px] w-[18px] shrink-0 brightness-0 invert ${className ?? ""}`}
+      aria-hidden
+    />
   );
 }
 
@@ -63,16 +70,17 @@ function ExpertProfileNavIcon(props: SVGProps<SVGSVGElement>) {
 
 export function ExpertNavIcon({
   kind,
+  className,
   ...props
-}: { kind: ExpertNavIconKind } & SVGProps<SVGSVGElement>) {
+}: { kind: ExpertNavIconKind; className?: string } & SVGProps<SVGSVGElement>) {
   switch (kind) {
     case "queue":
-      return <ExpertQueueNavIcon {...props} />;
+      return <ExpertQueueNavIcon className={className} />;
     case "drafts":
-      return <ExpertDraftsNavIcon {...props} />;
+      return <ExpertDraftsNavIcon className={className} {...props} />;
     case "history":
-      return <ExpertHistoryNavIcon {...props} />;
+      return <ExpertHistoryNavIcon className={className} {...props} />;
     case "profile":
-      return <ExpertProfileNavIcon {...props} />;
+      return <ExpertProfileNavIcon className={className} {...props} />;
   }
 }
