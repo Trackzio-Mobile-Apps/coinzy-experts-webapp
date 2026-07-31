@@ -89,6 +89,24 @@ export function ExpertProfileScreen() {
               <h2 className="text-xl font-semibold text-text">
                 {fullName || "—"}
               </h2>
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-text-muted">
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    profile.status && profile.status !== "active"
+                      ? "bg-expert-status-inactive"
+                      : profile.isAvailableForRequests
+                        ? "bg-expert-status-active"
+                        : "bg-expert-status-inactive"
+                  }`}
+                  aria-hidden
+                />
+                {profile.status && profile.status !== "active"
+                  ? profile.status.charAt(0).toUpperCase() +
+                    profile.status.slice(1)
+                  : profile.isAvailableForRequests
+                    ? "Available"
+                    : "Unavailable"}
+              </p>
               {tagline ? (
                 <p className="mt-2 text-sm leading-relaxed text-text-muted">
                   {tagline}
@@ -119,14 +137,16 @@ export function ExpertProfileScreen() {
                     : "Not accepting new requests"}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-[0.1em] text-text-muted">
-                  Account status
-                </dt>
-                <dd className="mt-1 text-sm capitalize text-text">
-                  {profile.status || "—"}
-                </dd>
-              </div>
+              {profile.status && profile.status !== "active" ? (
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-[0.1em] text-text-muted">
+                    Account status
+                  </dt>
+                  <dd className="mt-1 text-sm capitalize text-text">
+                    {profile.status}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
           </div>
         </div>

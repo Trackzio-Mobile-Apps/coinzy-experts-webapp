@@ -12,8 +12,8 @@ type ExpertLogoutConfirmModalProps = {
 function LogoutIcon() {
   return (
     <svg
-      width="28"
-      height="28"
+      width="26"
+      height="26"
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden
@@ -21,21 +21,21 @@ function LogoutIcon() {
       <path
         d="M10 17H6.5A1.5 1.5 0 0 1 5 15.5v-7A1.5 1.5 0 0 1 6.5 7H10"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="1.85"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M14 15.5 17.5 12 14 8.5"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="1.85"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M9 12h8.5"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="1.85"
         strokeLinecap="round"
       />
     </svg>
@@ -78,30 +78,28 @@ export function ExpertLogoutConfirmModal({
       }}
     >
       <div
-        className="relative w-full max-w-[28rem] rounded-2xl bg-surface px-6 pb-6 pt-5 shadow-2xl sm:px-8 sm:pb-8 sm:pt-6"
+        className="relative w-full max-w-md rounded-3xl bg-surface px-6 pb-8 pt-6 shadow-2xl sm:px-8"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onCancel}
           disabled={isLoggingOut}
-          className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-black/5 hover:text-text disabled:opacity-50"
+          className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-xl leading-none text-text-muted transition-colors hover:bg-black/5 hover:text-text disabled:opacity-50"
           aria-label="Close"
         >
-          <span className="text-xl leading-none" aria-hidden>
-            ×
-          </span>
+          <span aria-hidden>×</span>
         </button>
 
-        <div className="mx-auto mt-2 flex h-20 w-20 items-center justify-center rounded-full bg-primary-soft">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white">
+        <div className="mx-auto flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full bg-primary-soft">
+          <div className="flex h-[3.75rem] w-[3.75rem] items-center justify-center rounded-full bg-primary text-white">
             <LogoutIcon />
           </div>
         </div>
 
         <h2
           id="expert-logout-title"
-          className="mt-5 text-center text-xl font-semibold tracking-tight text-text"
+          className="mt-6 text-center text-xl font-semibold tracking-tight text-text"
         >
           Logout Confirmation
         </h2>
@@ -109,12 +107,12 @@ export function ExpertLogoutConfirmModal({
           Are you sure you want to log out of your expert account?
         </p>
 
-        <div className="mt-7 grid grid-cols-2 gap-3">
+        <div className="mt-8 grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={onCancel}
             disabled={isLoggingOut}
-            className="rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-text transition-colors hover:bg-black/[0.03] disabled:opacity-50"
+            className="rounded-full border border-primary bg-surface px-4 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -122,7 +120,7 @@ export function ExpertLogoutConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={isLoggingOut}
-            className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-70"
+            className="rounded-full bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-70"
           >
             {isLoggingOut ? "Logging out…" : "Logout"}
           </button>

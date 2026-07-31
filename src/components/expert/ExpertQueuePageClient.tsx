@@ -4,18 +4,23 @@ import { ExpertDashboardSection } from "@/components/expert/ExpertDashboardSecti
 import { ExpertQueuePageBody } from "@/components/expert/ExpertQueuePageBody";
 import { ExpertToast } from "@/components/expert/ExpertToast";
 import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
+import { clearEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
 import { buildQueueList } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import { useExpertQueuePolling } from "@/lib/expert/useExpertQueuePolling";
+import { ExpertOffersError, formatOfferErrorMessage, skipOffer } from "@/lib/expert/offersService";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export function ExpertQueuePageClient() {
   const searchParams = useSearchParams();
-  const { offers, acceptedRequests, isLoading, error } = useExpertPanelData();
+  const { offers, acceptedRequests, isLoading, error, refresh } =
+    useExpertPanelData();
   const [showLoginToast, setShowLoginToast] = useState(false);
   const [showNewRequestToast, setShowNewRequestToast] = useState(false);
   const [newRequestCount, setNewRequestCount] = useState(0);
+  const [skippingOfferId, setSkippingOfferId] = useState<string | null>(null);
+  const [skipError, setSkipError] = useState<string | null>(null);
 
   const handleNewOffers = useCallback((count: number) => {
     setNewRequestCount(count);
@@ -46,6 +51,34 @@ export function ExpertQueuePageClient() {
     [],
   );
 
+  const handleSkipOffer = useCallback(
+    async (offerId: string, requestId: string) => {
+      if (!offerId || skippingOfferId) return;
+
+      const confirmed = window.confirm(
+        "Reassign this request? It will be skipped and returned to the offer pool.",
+      );
+      if (!confirmed) return;
+
+      setSkippingOfferId(offerId);
+      setSkipError(null);
+      try {
+        await skipOffer(offerId);
+        clearEvaluationDraft(requestId);
+        await refresh();
+      } catch (err) {
+        const status = err instanceof ExpertOffersError ? err.status : 0;
+        const rawMessage =
+          err instanceof Error ? err.message : "Unable to reassign offer.";
+        const { message } = formatOfferErrorMessage(rawMessage, status, "skip");
+        setSkipError(message);
+      } finally {
+        setSkippingOfferId(null);
+      }
+    },
+    [refresh, skippingOfferId],
+  );
+
   const newRequestMessage =
     newRequestCount === 1
       ? "1 new request in your queue"
@@ -73,11 +106,18 @@ export function ExpertQueuePageClient() {
           {error}
         </p>
       ) : null}
+      {skipError ? (
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          {skipError}
+        </p>
+      ) : null}
       <ExpertQueuePageBody
         items={slice}
         page={page}
         totalItems={totalItems}
         isLoading={isLoading}
+        skippingOfferId={skippingOfferId}
+        onSkipOffer={handleSkipOffer}
       />
       <ExpertToast
         open={showLoginToast}

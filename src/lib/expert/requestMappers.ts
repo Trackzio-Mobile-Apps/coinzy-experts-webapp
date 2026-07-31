@@ -2,6 +2,7 @@ import {
   daysUntil,
   formatShortDate,
   formatSubmitted,
+  isDeadlineExceeded,
   normalizeIsoDate,
   normalizeMongoId,
   type HistoryPeriodFilter,
@@ -16,6 +17,7 @@ import type {
   HistoryRowStatus,
   QueueListItem,
   QueueItemStatus,
+  QueueRowVariant,
   RequestMediaItem,
 } from "@/lib/expert/types";
 
@@ -57,6 +59,32 @@ function mediaGroupLabel(key: string): string {
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+}
+
+function readVideoPoster(entry: Record<string, unknown>): string {
+  const candidate = asString(
+    entry.poster ?? entry.thumbnail ?? entry.thumbnailUrl ?? entry.preview,
+    "",
+  );
+  if (!candidate || isVideoUrl(candidate)) return "";
+  return candidate;
+}
+
+function applyVideoEntryMetadata(
+  item: RequestMediaItem | undefined,
+  entry: Record<string, unknown>,
+): void {
+  if (!item || item.kind !== "video") return;
+
+  const poster = readVideoPoster(entry);
+  if (poster) item.poster = poster;
+
+  if (
+    typeof entry.duration === "string" ||
+    typeof entry.duration === "number"
+  ) {
+    item.duration = String(entry.duration);
+  }
 }
 
 function pushMediaUrl(
@@ -118,18 +146,10 @@ function parseMediaList(
             entry.kind === "video" ||
             entry.type === "video",
         });
+        applyVideoEntryMetadata(media[media.length - 1], entry);
       }
     }
 
-    // Prefer a still image as video poster when the API only sends an mp4 URL.
-    const firstImage = media.find((m) => m.kind === "image");
-    if (firstImage?.kind === "image") {
-      for (const item of media) {
-        if (item.kind === "video" && !item.poster) {
-          item.poster = firstImage.src;
-        }
-      }
-    }
     return media;
   }
 
@@ -151,27 +171,7 @@ function parseMediaList(
         groupRaw && groupRaw !== "—" ? mediaGroupLabel(groupRaw) : undefined;
       const forceVideo = entry.kind === "video" || entry.type === "video";
       pushMediaUrl(media, src, { alt, group, forceVideo });
-      if (forceVideo && media.length > 0) {
-        const last = media[media.length - 1];
-        if (last?.kind === "video") {
-          last.duration =
-            typeof entry.duration === "string" ||
-            typeof entry.duration === "number"
-              ? String(entry.duration)
-              : undefined;
-          const poster = asString(entry.poster, "");
-          if (poster) last.poster = poster;
-        }
-      }
-    }
-  }
-
-  const firstImage = media.find((m) => m.kind === "image");
-  if (firstImage?.kind === "image") {
-    for (const item of media) {
-      if (item.kind === "video" && !item.poster) {
-        item.poster = firstImage.src;
-      }
+      applyVideoEntryMetadata(media[media.length - 1], entry);
     }
   }
 
@@ -217,6 +217,55 @@ export function parseRequestPayload(payload: unknown) {
   return { coinName, type, userNotes, valueInr, media };
 }
 
+const QUEUE_THUMBNAIL_GROUP_ORDER = ["Obverse", "Reverse", "Damage/Tear"] as const;
+
+function firstImageUrlInGroup(
+  media: RequestMediaItem[],
+  group: string,
+): string | null {
+  for (const item of media) {
+    if (item.kind !== "image") continue;
+    if (item.group?.trim() !== group) continue;
+    const src = item.src.trim();
+    if (src) return src;
+  }
+  return null;
+}
+
+/** Up to two queue thumbnail URLs — obverse, reverse, then edge, then any remaining images. */
+export function pickQueueThumbnailUrls(
+  payload: unknown,
+  limit = 2,
+): string[] {
+  if (limit <= 0) return [];
+
+  try {
+    const { media } = parseRequestPayload(payload);
+    const urls: string[] = [];
+    const seen = new Set<string>();
+
+    const push = (url: string | null | undefined) => {
+      const trimmed = url?.trim() ?? "";
+      if (!trimmed || seen.has(trimmed) || urls.length >= limit) return;
+      seen.add(trimmed);
+      urls.push(trimmed);
+    };
+
+    for (const group of QUEUE_THUMBNAIL_GROUP_ORDER) {
+      push(firstImageUrlInGroup(media, group));
+    }
+
+    for (const item of media) {
+      if (item.kind === "image") push(item.src);
+      if (urls.length >= limit) break;
+    }
+
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
 function resolveCoinName(request: BackendRequest): string {
   const fromTitle =
     typeof request.coinTitle === "string" ? request.coinTitle.trim() : "";
@@ -242,20 +291,47 @@ function resolveHistoryRequestLabel(request: BackendRequest): string {
   return `REQ-${tail}`;
 }
 
+function isRequestTimeExtended(request: BackendRequest): boolean {
+  const deadlineIso = normalizeIsoDate(request.deadlineAt);
+  const windowIso = normalizeIsoDate(request.firstAcceptanceWindowEndsAt);
+  if (!deadlineIso || !windowIso) return false;
+
+  const now = Date.now();
+  const deadlineMs = new Date(deadlineIso).getTime();
+  const windowMs = new Date(windowIso).getTime();
+
+  // Past the first acceptance window, but a later deadline is still active.
+  return windowMs < now && deadlineMs > now && deadlineMs > windowMs;
+}
+
+function resolveQueueRowVariant(
+  request: BackendRequest,
+  status: QueueItemStatus,
+): QueueRowVariant {
+  if (status === "pending_review") return "pending_review";
+  if (isDeadlineExceeded(request.deadlineAt)) return "in_progress";
+  if (isRequestTimeExtended(request)) return "time_extended";
+  return "in_progress";
+}
+
 export function mapOfferToQueueItem(offer: BackendOffer): QueueListItem {
   const request = offer.request;
   const deadlineAt = normalizeIsoDate(
     request.deadlineAt ?? offer.expiresAt,
   );
+  const status: QueueItemStatus = "pending_review";
   return {
     id: normalizeMongoId(request._id),
     displayId: resolveDisplayId(request),
     offerId: normalizeMongoId(offer._id),
     submittedDisplay: formatSubmitted(request.createdAt),
-    status: "pending_review",
+    status,
+    variant: resolveQueueRowVariant(request, status),
     deadlineDays: daysUntil(deadlineAt),
     deadlineAt,
+    deadlineExpired: isDeadlineExceeded(deadlineAt),
     coinName: resolveCoinName(request),
+    thumbnailUrls: pickQueueThumbnailUrls(request.payload),
   };
 }
 
@@ -263,14 +339,18 @@ export function mapAcceptedRequestToQueueItem(
   request: BackendRequest,
 ): QueueListItem {
   const deadlineAt = normalizeIsoDate(request.deadlineAt);
+  const status: QueueItemStatus = "in_progress";
   return {
     id: normalizeMongoId(request._id),
     displayId: resolveDisplayId(request),
     submittedDisplay: formatSubmitted(request.acceptedAt ?? request.createdAt),
-    status: "in_progress",
+    status,
+    variant: resolveQueueRowVariant(request, status),
     deadlineDays: daysUntil(deadlineAt),
     deadlineAt,
+    deadlineExpired: isDeadlineExceeded(deadlineAt),
     coinName: resolveCoinName(request),
+    thumbnailUrls: pickQueueThumbnailUrls(request.payload),
   };
 }
 
@@ -285,6 +365,7 @@ export function mapRequestToDraftItem(
     submittedDisplay: formatSubmitted(request.acceptedAt ?? request.createdAt),
     deadlineDays: daysUntil(deadlineAt),
     deadlineAt,
+    deadlineExpired: isDeadlineExceeded(deadlineAt),
     progressPercent,
   };
 }

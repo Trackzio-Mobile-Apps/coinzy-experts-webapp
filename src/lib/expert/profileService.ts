@@ -72,7 +72,10 @@ function mapBackendExpertToProfile(expert: BackendExpert): ExpertProfile {
             typeof code === "string" && code.trim().length > 0,
         )
       : [],
-    isAvailableForRequests: expert.isAvailableForRequests !== false,
+    isAvailableForRequests:
+      typeof expert.isAvailableForRequests === "boolean"
+        ? expert.isAvailableForRequests
+        : true,
     activeCommittedRequestCount: expert.activeCommittedRequestCount ?? 0,
     lastAssignedAt: expert.lastAssignedAt ?? null,
     profilePicture: expert.profilePicture ?? null,
@@ -229,5 +232,12 @@ export async function updateMyAvailability(
     );
   }
 
-  return mapBackendExpertToProfile(envelope.data.expert);
+  const mapped = mapBackendExpertToProfile(envelope.data.expert);
+  return {
+    ...mapped,
+    isAvailableForRequests:
+      typeof envelope.data.expert.isAvailableForRequests === "boolean"
+        ? envelope.data.expert.isAvailableForRequests
+        : isAvailableForRequests,
+  };
 }

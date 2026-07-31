@@ -1,5 +1,6 @@
 "use client";
 
+import { ExpertNavIcon } from "@/components/expert/ExpertNavIcons";
 import { ExpertLogoutConfirmModal } from "@/components/expert/ExpertLogoutConfirmModal";
 import { ExpertAvatar } from "@/components/expert/ExpertAvatar";
 import type { ExpertNavCounts, ExpertUserSummary } from "@/lib/expert/types";
@@ -69,49 +70,6 @@ function SidebarLogo() {
   );
 }
 
-function NavIcon({ kind }: { kind: (typeof NAV)[number]["icon"] }) {
-  const props = {
-    width: 18,
-    height: 18,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 2,
-    strokeLinecap: "round" as const,
-    "aria-hidden": true,
-  };
-
-  switch (kind) {
-    case "queue":
-      return (
-        <svg {...props}>
-          <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-        </svg>
-      );
-    case "drafts":
-      return (
-        <svg {...props}>
-          <path d="M12 20h9" />
-          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-        </svg>
-      );
-    case "history":
-      return (
-        <svg {...props}>
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" />
-        </svg>
-      );
-    case "profile":
-      return (
-        <svg {...props}>
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-      );
-  }
-}
-
 function MenuIcon() {
   return (
     <svg
@@ -160,7 +118,7 @@ function AvailabilityToggle({
         />
       </span>
       <span className="text-sm font-medium text-expert-sidebar-foreground">
-        Available
+        {checked ? "Available" : "Unavailable"}
       </span>
     </button>
   );
@@ -208,8 +166,18 @@ function ExpertNavInner({
 
     try {
       const updated = await updateMyAvailability(next);
-      hydrateProfile(updated);
-      setIsAvailable(updated.isAvailableForRequests);
+      hydrateProfile({
+        ...updated,
+        isAvailableForRequests:
+          typeof updated.isAvailableForRequests === "boolean"
+            ? updated.isAvailableForRequests
+            : next,
+      });
+      setIsAvailable(
+        typeof updated.isAvailableForRequests === "boolean"
+          ? updated.isAvailableForRequests
+          : next,
+      );
     } catch (err) {
       setIsAvailable(previous);
       if (err instanceof ExpertProfileError && err.code === "unauthorized") {
@@ -257,7 +225,7 @@ function ExpertNavInner({
               }`}
             >
               <span className="shrink-0 opacity-90">
-                <NavIcon kind={item.icon} />
+                <ExpertNavIcon kind={item.icon} />
               </span>
               <span className="flex-1">{item.label}</span>
               {count != null && count > 0 ? (
@@ -286,13 +254,19 @@ function ExpertNavInner({
             <p className="mt-0.5 flex items-center gap-1.5 text-xs text-expert-sidebar-muted">
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  status === "active"
-                    ? "bg-expert-status-active"
-                    : "bg-expert-status-inactive"
+                  status && status !== "active"
+                    ? "bg-expert-status-inactive"
+                    : isAvailable
+                      ? "bg-expert-status-active"
+                      : "bg-expert-status-inactive"
                 }`}
                 aria-hidden
               />
-              {statusLabel(status)}
+              {status && status !== "active"
+                ? statusLabel(status)
+                : isAvailable
+                  ? "Available"
+                  : "Unavailable"}
             </p>
           </div>
         </div>

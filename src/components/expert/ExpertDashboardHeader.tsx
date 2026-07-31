@@ -44,16 +44,19 @@ export function ExpertDashboardHeader({
         <div className="flex flex-col gap-6 sm:flex-row sm:flex-wrap">
           <ExpertStatCard
             highlighted
+            href="/expert/drafts"
             label="Active cases"
             value={s.activeCases}
             hint="Pending your review"
           />
           <ExpertStatCard
+            href="/expert/queue"
             label="New requests"
             value={s.newRequests}
             hint="This month"
           />
           <ExpertStatCard
+            href="/expert/history"
             label="Completed"
             value={s.completed}
             hint="All time"

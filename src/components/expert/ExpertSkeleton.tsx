@@ -63,16 +63,15 @@ export function ExpertQueueListSkeleton({ rows = 4 }: { rows?: number }) {
         <li key={index}>
           <article className="flex flex-col gap-4 rounded-xl border border-border/80 border-l-4 border-l-border bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <div className="flex min-w-0 flex-1 gap-4">
-              <SkeletonBone className="h-14 w-14 shrink-0 rounded-full" />
+              <SkeletonBone className="h-14 w-[7.5rem] shrink-0 rounded-full" />
               <div className="min-w-0 flex-1 space-y-2">
-                <SkeletonBone className="h-4 w-40" />
                 <SkeletonBone className="h-3 w-52" />
-                <SkeletonBone className="h-3 w-28" />
-                <SkeletonBone className="h-5 w-20 rounded-full" />
+                <SkeletonBone className="h-5 w-28" />
+                <SkeletonBone className="h-5 w-24 rounded-full" />
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
-              <SkeletonBone className="h-3 w-24" />
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <SkeletonBone className="h-10 w-28 rounded-lg" />
               <SkeletonBone className="h-10 w-28 rounded-lg" />
             </div>
           </article>
@@ -87,17 +86,24 @@ export function ExpertDraftsListSkeleton({ rows = 3 }: { rows?: number }) {
     <ul className="space-y-4" aria-busy="true" aria-label="Loading drafts">
       {Array.from({ length: rows }, (_, index) => (
         <li key={index}>
-          <article className="rounded-xl border border-border/80 border-l-4 border-l-border bg-surface p-4 shadow-sm sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 flex-1 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <SkeletonBone className="h-3 w-40" />
-                  <SkeletonBone className="h-5 w-16 rounded-full" />
-                </div>
-                <SkeletonBone className="h-5 w-36" />
-                <SkeletonBone className="h-2 w-full rounded-full" />
+          <article className="rounded-xl border border-border border-l-4 border-l-expert-draft-accent bg-surface p-5 shadow-sm sm:p-6 sm:pl-5">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:grid-rows-[auto_auto_auto] sm:gap-y-4">
+              <SkeletonBone className="h-3.5 w-44 sm:row-start-1" />
+              <div className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end sm:gap-x-5">
+                <SkeletonBone className="h-6 w-14 rounded-full" />
+                <SkeletonBone className="h-3.5 w-20" />
+                <div className="hidden sm:block" aria-hidden />
+                <SkeletonBone className="h-7 w-16 justify-self-end" />
               </div>
-              <SkeletonBone className="h-10 w-28 rounded-lg" />
+              <SkeletonBone className="h-7 w-36 sm:row-start-2" />
+              <div className="sm:col-start-1 sm:row-start-3">
+                <SkeletonBone className="h-3 w-24" />
+                <div className="mt-2 flex items-center gap-3">
+                  <SkeletonBone className="h-2 min-w-0 flex-1 rounded-full" />
+                  <SkeletonBone className="h-3 w-20 shrink-0" />
+                </div>
+              </div>
+              <SkeletonBone className="h-10 w-[7.5rem] justify-self-start rounded-lg sm:col-start-2 sm:row-start-3 sm:justify-self-end" />
             </div>
           </article>
         </li>

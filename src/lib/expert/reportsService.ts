@@ -143,29 +143,8 @@ export function syncReportMappingsFromRequests(
   }
 }
 
-function draftCoinName(
-  form: EvaluationFormState | undefined,
-  fallback?: string,
-): string {
-  const fromForm = form?.coinName?.trim() ?? "";
-  const fromFallback = fallback?.trim() ?? "";
-  return fromForm || fromFallback || "Untitled draft";
-}
-
-function minimalDraftContentFields(
-  coinName: string,
-): Partial<ReportContentFields> {
-  return {
-    generalInfo: {
-      coinName,
-      currencyAndDenomination: "",
-      issuer: "",
-      period: "",
-      rulerOrGovt: "",
-      yearOfMinting: "",
-      mintLocation: "",
-    },
-  };
+function minimalDraftContentFields(): Partial<ReportContentFields> {
+  return {};
 }
 
 export class ExpertReportsError extends Error {
@@ -417,9 +396,7 @@ export async function saveDraftReport(opts: {
   const hasFormContent = evaluateFormProgress(opts.form).filled > 0;
   const contentFields = hasFormContent
     ? formToContentFields(opts.form)
-    : minimalDraftContentFields(
-        draftCoinName(opts.form, opts.coinName),
-      );
+    : minimalDraftContentFields();
 
   if (opts.reportId) {
     const data = await updateReport(opts.reportId, {

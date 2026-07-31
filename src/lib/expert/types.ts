@@ -205,6 +205,9 @@ export type ExpertNavCounts = {
 
 export type QueueItemStatus = "in_progress" | "pending_review";
 
+/** Visual queue row variant (accent, badge, primary button). */
+export type QueueRowVariant = "pending_review" | "in_progress" | "time_extended";
+
 export type QueueListItem = {
   id: string;
   /** Human-readable id shown in UI (API displayId when present). */
@@ -212,10 +215,15 @@ export type QueueListItem = {
   offerId?: string;
   submittedDisplay: string;
   status: QueueItemStatus;
+  variant: QueueRowVariant;
   deadlineDays: number;
   /** ISO deadline used for precise remaining-time labels. */
   deadlineAt?: string | null;
+  /** True when the row deadline (or offer expiry) is in the past. */
+  deadlineExpired: boolean;
   coinName: string;
+  /** Up to two image URLs for queue thumbnails (obverse + reverse preferred). */
+  thumbnailUrls: string[];
 };
 
 export type DraftListItem = {
@@ -226,6 +234,8 @@ export type DraftListItem = {
   deadlineDays: number;
   /** ISO deadline used for precise remaining-time labels. */
   deadlineAt?: string | null;
+  /** True when the row deadline is in the past. */
+  deadlineExpired: boolean;
   progressPercent: number;
 };
 
