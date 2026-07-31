@@ -3,6 +3,7 @@ import {
   ExpertStatCardsSkeleton,
 } from "@/components/expert/ExpertSkeleton";
 import { ExpertEmptyState } from "@/components/expert/ExpertEmptyState";
+import { ExpertScrollIllustration } from "@/components/expert/ExpertScrollIllustration";
 import { HISTORY_PAGE_SIZE } from "@/lib/expert/constants";
 import {
   buildExpertHistoryHref,
@@ -49,19 +50,6 @@ const thCenterClass =
   "px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted";
 const tdClass = "px-4 py-3.5 align-middle text-sm";
 const tdCenterClass = "px-4 py-3.5 align-middle text-center text-sm";
-
-function HistoryScrollIcon() {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- static empty-state asset from /public
-    <img
-      src="/expert-drafts-scroll.png"
-      alt=""
-      width={60}
-      height={60}
-      className="h-12 w-12 object-contain"
-    />
-  );
-}
 
 function formatHistoryValue(valueInr: number | null): string {
   if (valueInr == null) return "—";
@@ -118,11 +106,6 @@ export function ExpertHistoryPageBody({
                   ? "—"
                   : formatHistoryValue(summary.totalEarnedInr)
               }
-              hint={
-                summary.earnedThisMonthInr == null
-                  ? "This month: —"
-                  : `This month: ${formatHistoryValue(summary.earnedThisMonthInr)}`
-              }
             />
           </div>
         )}
@@ -133,7 +116,7 @@ export function ExpertHistoryPageBody({
       ) : showFullEmpty ? (
         <div className="rounded-xl border border-border bg-surface shadow-sm">
           <ExpertEmptyState
-            icon={<HistoryScrollIcon />}
+            icon={<ExpertScrollIllustration className="h-12 w-12 object-contain xl:h-16 xl:w-16" />}
             title="Evaluation history"
             description="This page will show evaluations history"
           />
@@ -347,7 +330,7 @@ function SummaryCard({
 }: {
   label: string;
   value: string;
-  hint: string;
+  hint?: string;
 }) {
   return (
     <article className="flex h-[116px] w-full flex-col justify-between rounded-xl border border-border bg-surface px-5 py-4 shadow-sm sm:w-[249px] sm:shrink-0">
@@ -357,7 +340,9 @@ function SummaryCard({
       <p className="truncate text-[30px] font-semibold leading-none tracking-tight tabular-nums text-text">
         {value}
       </p>
-      <p className="truncate text-xs leading-4 text-text-muted">{hint}</p>
+      {hint ? (
+        <p className="truncate text-xs leading-4 text-text-muted">{hint}</p>
+      ) : null}
     </article>
   );
 }

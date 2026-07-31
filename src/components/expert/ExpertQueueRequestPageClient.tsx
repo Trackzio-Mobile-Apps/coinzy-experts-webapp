@@ -5,6 +5,7 @@ import { ExpertRequestDetailSkeleton } from "@/components/expert/ExpertSkeleton"
 import {
   acceptOffer,
   ExpertOffersError,
+  formatOfferErrorMessage,
   skipOffer,
 } from "@/lib/expert/offersService";
 import { clearEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
@@ -121,18 +122,39 @@ export function ExpertQueueRequestPageClient({
       }
       await refresh();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Unable to accept offer.";
       const status = err instanceof ExpertOffersError ? err.status : 0;
-      // Only mark unavailable when another expert truly took it — not workload limits.
-      if (
-        (status === 409 || status === 404) &&
-        /already|unavailable|expired|not found|taken|another/i.test(message) &&
-        !/workload\s*limit/i.test(message)
-      ) {
-        setUnavailable(true);
+      const rawMessage =
+        err instanceof Error ? err.message : "Unable to accept offer.";
+
+      // Offer may be stale while the request is already yours — recover after refresh.
+      const refreshed = await refresh({ silent: true });
+      const latestRequest =
+        refreshed?.acceptedRequests.find(
+          (r) => normalizeMongoId(r._id) === requestId,
+        ) ??
+        refreshed?.requests.find(
+          (r) => normalizeMongoId(r._id) === requestId,
+        );
+
+      if (latestRequest?.status === "accepted") {
+        setAccepted(true);
+        setUnavailable(false);
+        setAcceptError(null);
+        return;
       }
-      setAcceptError(message);
+
+      const { message, markUnavailable } = formatOfferErrorMessage(
+        rawMessage,
+        status,
+        "accept",
+      );
+
+      if (markUnavailable) {
+        setUnavailable(true);
+        setAcceptError(null);
+      } else {
+        setAcceptError(message);
+      }
     } finally {
       setAccepting(false);
     }
@@ -159,15 +181,10 @@ export function ExpertQueueRequestPageClient({
       router.push("/expert/queue");
     } catch (err) {
       const status = err instanceof ExpertOffersError ? err.status : 0;
-      const message =
+      const rawMessage =
         err instanceof Error ? err.message : "Unable to reassign offer.";
-      if (status === 409) {
-        setReassignError(
-          "This offer can only be skipped before you accept it. Post-accept reassignment is not available on the API yet.",
-        );
-      } else {
-        setReassignError(message);
-      }
+      const { message } = formatOfferErrorMessage(rawMessage, status, "skip");
+      setReassignError(message);
     } finally {
       setReassigning(false);
     }

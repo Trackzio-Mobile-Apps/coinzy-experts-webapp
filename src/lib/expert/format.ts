@@ -224,6 +224,31 @@ export function formatRequestId(id: string): string {
   return id.length > 8 ? id.slice(-8).toUpperCase() : id.toUpperCase();
 }
 
+/** Queue card label, e.g. `REQ-ID 00016`. */
+export function formatQueueRequestIdLabel(displayId: string): string {
+  const trimmed = displayId.trim();
+  if (!trimmed) return "REQ-ID —";
+  const digits = trimmed.replace(/\D/g, "");
+  const tail = (digits || trimmed).slice(-5).padStart(5, "0");
+  return `REQ-ID ${tail}`;
+}
+
+/** Whole-day deadline label for queue cards, e.g. `3 days`. */
+export function formatQueueDeadlineDays(deadlineDays: number): string {
+  const days = Math.max(0, deadlineDays);
+  if (days === 0) return "Today";
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
+
+/** Queue card deadline — `Overdue` when past, otherwise day count. */
+export function formatQueueDeadlineLabel(
+  deadlineAt: string | null | undefined,
+  deadlineDays: number,
+): string {
+  if (isDeadlineExceeded(deadlineAt)) return "Overdue";
+  return formatQueueDeadlineDays(deadlineDays);
+}
+
 export type HistoryPeriodFilter = "all" | "month" | "quarter";
 
 export function parseHistoryPeriod(

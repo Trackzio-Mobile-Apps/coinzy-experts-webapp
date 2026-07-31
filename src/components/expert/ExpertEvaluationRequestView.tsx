@@ -6,12 +6,16 @@ import {
   createInitialEvaluationFormState,
   evaluateFormProgress,
   EVALUATION_FORM_SECTIONS,
-  getMissingRequiredFields,
   getSectionProgress,
   getSectionStepState,
   normalizeEvaluationFormState,
   type SectionStepState,
 } from "@/lib/expert/evaluationForm";
+import {
+  isEvaluationFormValid,
+  validateEvaluationField,
+  validateEvaluationForm,
+} from "@/lib/expert/evaluationFormValidation";
 import {
   clearEvaluationDraft,
   loadEvaluationDraft,
@@ -35,6 +39,8 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EvaluationMediaLightbox } from "./EvaluationMediaLightbox";
+import { ExpandMediaGalleryIcon } from "./ExpandMediaGalleryIcon";
+import { MediaGroupScroller } from "./MediaGroupScroller";
 import { ExpertDeadlineExceededModal } from "./ExpertDeadlineExceededModal";
 
 type ExpertEvaluationRequestViewProps = {
@@ -63,6 +69,7 @@ function FieldBlock({
   className = "",
   required = false,
   description,
+  error,
 }: {
   label: string;
   id: string;
@@ -70,6 +77,7 @@ function FieldBlock({
   className?: string;
   required?: boolean;
   description?: string;
+  error?: string;
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
@@ -90,6 +98,11 @@ function FieldBlock({
         <p className="text-xs leading-relaxed text-text-muted">{description}</p>
       ) : null}
       {children}
+      {error ? (
+        <p className="text-xs text-expert-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -194,29 +207,21 @@ function MediaAndNotes({
   const grouped = useMemo(() => groupMedia(detail.media), [detail.media]);
 
   return (
-    <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain lg:h-full">
-      <section className="shrink-0 rounded-xl border border-border/70 bg-surface p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className={labelClass}>Coin images & videos</h2>
+    <aside className="flex w-full min-w-0 max-w-full flex-col gap-4 lg:min-h-0 lg:h-full lg:overflow-y-auto lg:overscroll-contain">
+      <section className="w-full min-w-0 shrink-0 rounded-xl border border-border/70 bg-surface p-4 shadow-sm">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h2 className={`${labelClass} min-w-0 flex-1 leading-snug`}>
+            Coin images & videos
+          </h2>
           {detail.media.length > 0 ? (
             <button
               type="button"
               onClick={() => onOpen(0)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/80 text-text-muted transition-colors hover:bg-input-bg hover:text-text"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-input-bg hover:text-text"
               aria-label="Expand media gallery"
               title="Open gallery"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden
-              >
-                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-              </svg>
+              <ExpandMediaGalleryIcon className="h-[1.125rem] w-[1.125rem]" />
             </button>
           ) : null}
         </div>
@@ -233,50 +238,7 @@ function MediaAndNotes({
                   {group}{" "}
                   <span className="text-text-muted/80">({items.length})</span>
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {items.map(({ item: m, index: i }) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => onOpen(i)}
-                      className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border/80 bg-input-bg text-left shadow-sm outline-none transition-[box-shadow,ring-color] focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-[4.5rem] sm:w-[4.5rem]"
-                    >
-                      {m.kind === "image" ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={m.src}
-                          alt={m.alt}
-                          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
-                        />
-                      ) : (
-                        <>
-                          {m.poster ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={m.poster}
-                              alt={m.alt}
-                              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
-                            />
-                          ) : (
-                            <span className="flex h-full w-full items-center justify-center bg-neutral-900 text-[10px] font-semibold text-white">
-                              Video
-                            </span>
-                          )}
-                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-[10px] text-white shadow">
-                              ▶
-                            </span>
-                          </span>
-                          {m.duration ? (
-                            <span className="absolute bottom-1 right-1 rounded bg-black/75 px-1 py-0.5 text-[9px] font-semibold text-white">
-                              {m.duration}
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <MediaGroupScroller items={items} onOpen={onOpen} />
               </div>
             ))}
           </div>
@@ -588,6 +550,8 @@ export function ExpertEvaluationRequestView({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [hydrated, setHydrated] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [showAllFieldErrors, setShowAllFieldErrors] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const reassignDisabled = !detail.offerId || !onReassign;
   const draftReportIdRef = useRef(draftReportId);
@@ -606,12 +570,15 @@ export function ExpertEvaluationRequestView({
     return () => window.clearTimeout(timer);
   }, [detail.deadlineAt, deadlineExceeded, nowMs]);
 
+  const requiredFieldsComplete = areRequiredFieldsComplete(form);
+  const formIsValid = useMemo(() => isEvaluationFormValid(form), [form]);
   const submitBlocked =
-    !detail.canSubmit || submitting || isDeadlineExceeded(detail.deadlineAt);
-  const showSubmitButton =
-    areRequiredFieldsComplete(form) &&
-    detail.canSubmit &&
-    !isDeadlineExceeded(detail.deadlineAt);
+    !detail.canSubmit ||
+    submitting ||
+    isDeadlineExceeded(detail.deadlineAt) ||
+    !requiredFieldsComplete ||
+    !formIsValid;
+  const showSubmitButton = detail.canSubmit;
 
   useEffect(() => {
     draftReportIdRef.current = draftReportId;
@@ -763,7 +730,55 @@ export function ExpertEvaluationRequestView({
   }, [detail.canSubmit, detail.requestId, detail.coinName, detail.media]);
 
   const setField = (key: string, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const nextForm = { ...prev, [key]: value };
+      if (
+        showAllFieldErrors ||
+        fieldErrors[key] ||
+        (key === "estimatedPriceMin" &&
+          ((nextForm.estimatedPriceMax ?? "").trim().length > 0 ||
+            Boolean(fieldErrors.estimatedPriceMax)))
+      ) {
+        const keysToValidate =
+          key === "estimatedPriceMin"
+            ? ([key, "estimatedPriceMax"] as const)
+            : ([key] as const);
+        setFieldErrors((current) => {
+          const next = { ...current };
+          for (const fieldKey of keysToValidate) {
+            const error = validateEvaluationField(
+              fieldKey,
+              nextForm[fieldKey] ?? "",
+              nextForm,
+            );
+            if (error) next[fieldKey] = error;
+            else delete next[fieldKey];
+          }
+          return next;
+        });
+      }
+      return nextForm;
+    });
+  };
+
+  const handleFieldBlur = (key: string) => {
+    const keysToValidate =
+      key === "estimatedPriceMin"
+        ? ([key, "estimatedPriceMax"] as const)
+        : ([key] as const);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      for (const fieldKey of keysToValidate) {
+        const error = validateEvaluationField(
+          fieldKey,
+          form[fieldKey] ?? "",
+          form,
+        );
+        if (error) next[fieldKey] = error;
+        else delete next[fieldKey];
+      }
+      return next;
+    });
   };
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -776,14 +791,28 @@ export function ExpertEvaluationRequestView({
       return;
     }
 
-    const missing = getMissingRequiredFields(form);
-    if (missing.length > 0) {
-      setSubmitError(
-        `Please fill all mandatory fields before submitting: ${missing.join(", ")}.`,
-      );
+    const errors = validateEvaluationForm(form);
+    if (Object.keys(errors).length > 0) {
+      setShowAllFieldErrors(true);
+      setFieldErrors(errors);
+      setSubmitError("Please fix the highlighted fields before submitting.");
+      const firstInvalidKey = EVALUATION_FORM_SECTIONS.flatMap((section) =>
+        section.fields.map((field) => field.key),
+      ).find((key) => errors[key]);
+      if (firstInvalidKey) {
+        document
+          .getElementById(
+            `${EVALUATION_FORM_SECTIONS.find((section) =>
+              section.fields.some((field) => field.key === firstInvalidKey),
+            )?.id}-${firstInvalidKey}`,
+          )
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
 
+    setShowAllFieldErrors(false);
+    setFieldErrors({});
     setSubmitting(true);
     setSubmitError(null);
     // Prevent a stale autosave from racing the final submit.
@@ -929,10 +958,10 @@ export function ExpertEvaluationRequestView({
           onReassign={onReassign}
         />
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
           <MediaAndNotes detail={detail} onOpen={setLightbox} />
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain pe-1">
+          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-visible lg:overflow-y-auto lg:overscroll-contain lg:pe-1">
             <EvaluationProgressStepper form={form} />
 
             {reassignError ? (
@@ -1010,6 +1039,10 @@ export function ExpertEvaluationRequestView({
                           {section.fields.map((field) => {
                             const id = `${section.id}-${field.key}`;
                             const isRequired = Boolean(field.required);
+                            const fieldError = fieldErrors[field.key];
+                            const invalidClass = fieldError
+                              ? "border-expert-error focus:border-expert-error focus:ring-expert-error/20"
+                              : "";
                             return (
                               <FieldBlock
                                 key={field.key}
@@ -1017,6 +1050,7 @@ export function ExpertEvaluationRequestView({
                                 id={id}
                                 required={isRequired}
                                 description={field.description}
+                                error={fieldError}
                                 className={
                                   field.multiline ? "sm:col-span-2" : undefined
                                 }
@@ -1028,11 +1062,13 @@ export function ExpertEvaluationRequestView({
                                     rows={4}
                                     required={isRequired}
                                     aria-required={isRequired}
+                                    aria-invalid={Boolean(fieldError)}
                                     value={form[field.key] ?? ""}
                                     onChange={(e) =>
                                       setField(field.key, e.target.value)
                                     }
-                                    className={`${inputClass} min-h-[6rem] resize-y`}
+                                    onBlur={() => handleFieldBlur(field.key)}
+                                    className={`${inputClass} min-h-[6rem] resize-y ${invalidClass}`}
                                     placeholder={field.description ?? "—"}
                                   />
                                 ) : (
@@ -1042,12 +1078,14 @@ export function ExpertEvaluationRequestView({
                                     type="text"
                                     required={isRequired}
                                     aria-required={isRequired}
+                                    aria-invalid={Boolean(fieldError)}
                                     inputMode={field.inputMode ?? "text"}
                                     value={form[field.key] ?? ""}
                                     onChange={(e) =>
                                       setField(field.key, e.target.value)
                                     }
-                                    className={inputClass}
+                                    onBlur={() => handleFieldBlur(field.key)}
+                                    className={`${inputClass} ${invalidClass}`}
                                     placeholder={field.description ?? "—"}
                                   />
                                 )}
