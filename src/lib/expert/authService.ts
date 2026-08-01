@@ -8,6 +8,7 @@ import {
   setStoredExpertProfile,
 } from "@/lib/expert/expertSession";
 import { resetServerReportMapCache } from "@/lib/expert/reportsService";
+import { disconnectExpertSocket } from "@/lib/expert/socket/expertSocketService";
 import { getMyProfile } from "@/lib/expert/profileService";
 import type {
   ExpertLoginApiData,
@@ -26,6 +27,7 @@ export class ExpertLoginError extends Error {
 }
 
 export async function clearExpertSession(): Promise<void> {
+  disconnectExpertSocket();
   await clearExpertToken();
   clearStoredExpertProfile();
   resetServerReportMapCache();
