@@ -2,6 +2,7 @@
 
 import { QUEUE_POLL_INTERVAL_MS } from "@/lib/expert/constants";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
+import { useExpertSocket } from "@/lib/expert/expertSocketProvider";
 import { normalizeMongoId } from "@/lib/expert/format";
 import { useEffect, useRef } from "react";
 
@@ -19,36 +20,48 @@ function offerIds(offers: { _id: unknown }[]): Set<string> {
   return ids;
 }
 
-/** Polls for new queue offers while the expert is on the home (queue) page. */
+/**
+ * Fallback HTTP polling when the expert socket is disconnected.
+ * Disabled automatically while Socket.IO is connected.
+ */
 export function useExpertQueuePolling({
   enabled,
   onNewOffers,
 }: UseExpertQueuePollingOptions): void {
   const { offers, isLoading, refresh } = useExpertPanelData();
+  const { isSocketConnected } = useExpertSocket();
   const knownOfferIdsRef = useRef<Set<string> | null>(null);
   const pollingReadyRef = useRef(false);
   const onNewOffersRef = useRef(onNewOffers);
+
+  const pollingEnabled = enabled && !isSocketConnected;
 
   useEffect(() => {
     onNewOffersRef.current = onNewOffers;
   }, [onNewOffers]);
 
   useEffect(() => {
-    if (!enabled || isLoading || pollingReadyRef.current) return;
+    if (!pollingEnabled || isLoading || pollingReadyRef.current) return;
 
     knownOfferIdsRef.current = offerIds(offers);
     pollingReadyRef.current = true;
-  }, [enabled, isLoading, offers]);
+  }, [pollingEnabled, isLoading, offers]);
 
   useEffect(() => {
-    if (!enabled || isLoading) return;
+    if (!pollingEnabled) {
+      pollingReadyRef.current = false;
+      knownOfferIdsRef.current = null;
+      return;
+    }
+
+    if (isLoading) return;
 
     let cancelled = false;
 
     async function poll() {
       if (cancelled || document.hidden || !pollingReadyRef.current) return;
 
-      const data = await refresh({ silent: true });
+      const data = await refresh({ silent: true, scope: "offers" });
       if (cancelled || !data) return;
 
       const known = knownOfferIdsRef.current ?? new Set<string>();
@@ -85,5 +98,5 @@ export function useExpertQueuePolling({
       pollingReadyRef.current = false;
       knownOfferIdsRef.current = null;
     };
-  }, [enabled, isLoading, refresh]);
+  }, [pollingEnabled, isLoading, refresh]);
 }

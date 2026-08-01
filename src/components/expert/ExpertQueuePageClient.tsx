@@ -7,6 +7,7 @@ import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
 import { clearEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
 import { buildQueueList } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
+import { useExpertSocket } from "@/lib/expert/expertSocketProvider";
 import { useExpertQueuePolling } from "@/lib/expert/useExpertQueuePolling";
 import { ExpertOffersError, formatOfferErrorMessage, skipOffer } from "@/lib/expert/offersService";
 import { useSearchParams } from "next/navigation";
@@ -22,6 +23,8 @@ export function ExpertQueuePageClient() {
   const [skippingOfferId, setSkippingOfferId] = useState<string | null>(null);
   const [skipError, setSkipError] = useState<string | null>(null);
 
+  const { subscribeOffered } = useExpertSocket();
+
   const handleNewOffers = useCallback((count: number) => {
     setNewRequestCount(count);
     setShowNewRequestToast(true);
@@ -31,6 +34,13 @@ export function ExpertQueuePageClient() {
     enabled: !isLoading && !error,
     onNewOffers: handleNewOffers,
   });
+
+  useEffect(() => {
+    return subscribeOffered(() => {
+      setNewRequestCount(1);
+      setShowNewRequestToast(true);
+    });
+  }, [subscribeOffered]);
 
   useEffect(() => {
     if (

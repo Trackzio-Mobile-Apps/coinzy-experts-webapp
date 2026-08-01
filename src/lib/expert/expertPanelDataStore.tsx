@@ -32,9 +32,13 @@ type ExpertPanelRefreshResult = {
   acceptedRequests: BackendRequest[];
 };
 
+type ExpertPanelRefreshScope = "all" | "offers" | "requests";
+
 type ExpertPanelRefreshOptions = {
   /** Skip loading UI — for background polling on the queue home page. */
   silent?: boolean;
+  /** Which REST resources to refetch. Defaults to all. */
+  scope?: ExpertPanelRefreshScope;
 };
 
 type ExpertPanelDataContextValue = {
@@ -63,31 +67,46 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async (options?: ExpertPanelRefreshOptions) => {
     const silent = options?.silent ?? false;
+    const scope = options?.scope ?? "all";
     if (!silent) {
       setIsLoading(true);
       setError(null);
     }
     try {
-      await hydrateServerReportMap();
+      let nextOffers: BackendOffer[] | undefined;
+      let nextRequests: BackendRequest[] | undefined;
+      let nextAccepted: BackendRequest[] | undefined;
 
-      const [nextOffers, nextRequests, nextAccepted] = await Promise.all([
-        getExpertOffers(),
-        getExpertRequests(),
-        getAcceptedRequests(),
-      ]);
-      syncReportMappingsFromRequests(nextRequests);
-      syncReportMappingsFromRequests(nextAccepted);
+      if (scope === "all" || scope === "requests") {
+        await hydrateServerReportMap();
+      }
 
-      console.log("[expert] GET /experts/me/offers", nextOffers);
-      console.log("[expert] GET /experts/me/requests", nextRequests);
-      console.log("[expert] GET /experts/me/requests?status=accepted", nextAccepted);
-      setOffers(nextOffers);
-      setRequests(nextRequests);
-      setAcceptedRequests(nextAccepted);
+      if (scope === "all" || scope === "offers") {
+        nextOffers = await getExpertOffers();
+        setOffers(nextOffers);
+        console.log("[expert] GET /experts/me/offers", nextOffers);
+      }
+
+      if (scope === "all" || scope === "requests") {
+        [nextRequests, nextAccepted] = await Promise.all([
+          getExpertRequests(),
+          getAcceptedRequests(),
+        ]);
+        syncReportMappingsFromRequests(nextRequests);
+        syncReportMappingsFromRequests(nextAccepted);
+        setRequests(nextRequests);
+        setAcceptedRequests(nextAccepted);
+        console.log("[expert] GET /experts/me/requests", nextRequests);
+        console.log(
+          "[expert] GET /experts/me/requests?status=accepted",
+          nextAccepted,
+        );
+      }
+
       return {
-        offers: nextOffers,
-        requests: nextRequests,
-        acceptedRequests: nextAccepted,
+        offers: nextOffers ?? [],
+        requests: nextRequests ?? [],
+        acceptedRequests: nextAccepted ?? [],
       };
     } catch (err) {
       if (!silent) {
