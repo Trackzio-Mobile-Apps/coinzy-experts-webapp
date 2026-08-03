@@ -7,6 +7,7 @@ import {
   normalizeMongoId,
   type HistoryPeriodFilter,
 } from "@/lib/expert/format";
+import { extractReportIdFromRequest } from "@/lib/expert/reportsService";
 import type {
   BackendOffer,
   BackendRequest,
@@ -498,6 +499,7 @@ export function buildEvaluationDetail(opts: {
   return {
     requestId: normalizeMongoId(opts.request._id),
     displayId: resolveDisplayId(opts.request),
+    reportId: extractReportIdFromRequest(opts.request) ?? undefined,
     offerId: opts.offerId ? normalizeMongoId(opts.offerId) : undefined,
     needsAccept,
     unavailable,

@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EXPERT_JWT_COOKIE } from "@/lib/expert/expertCookie";
-import {
-  expertIdFromJwt,
-  reportMappingFromMutationResponse,
-} from "@/lib/expert/expertJwt";
-import { rememberExpertReportMapping } from "@/lib/expert/reportMapStore.server";
 
 function getBackendBaseUrl(): string {
   const base =
@@ -12,43 +7,6 @@ function getBackendBaseUrl(): string {
     process.env.NEXT_PUBLIC_EXPERT_API_BASE_URL ??
     "http://localhost:3001";
   return base.replace(/\/$/, "");
-}
-
-function isReportMutation(path: string, method: string): boolean {
-  if (method === "POST" && path === "experts/reports") return true;
-  if (method === "PUT" && /^experts\/reports\/[^/]+$/.test(path)) return true;
-  return false;
-}
-
-async function persistReportMappingFromResponse(
-  token: string | undefined,
-  responseBody: string,
-  contentType: string | null,
-): Promise<void> {
-  if (!contentType?.includes("application/json")) return;
-
-  const expertId = expertIdFromJwt(token);
-  if (!expertId) return;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(responseBody);
-  } catch {
-    return;
-  }
-
-  const mapping = reportMappingFromMutationResponse(parsed);
-  if (!mapping) return;
-
-  try {
-    await rememberExpertReportMapping(
-      expertId,
-      mapping.requestId,
-      mapping.reportId,
-    );
-  } catch {
-    // Non-fatal — client-side map sync remains a fallback.
-  }
 }
 
 async function proxyRequest(
@@ -108,18 +66,6 @@ async function proxyRequest(
 
   const responseBody = await backendResponse.text();
   const responseContentType = backendResponse.headers.get("content-type");
-
-  if (
-    isReportMutation(path, method) &&
-    backendResponse.ok &&
-    responseBody
-  ) {
-    await persistReportMappingFromResponse(
-      token,
-      responseBody,
-      responseContentType,
-    );
-  }
 
   const responseHeaders = new Headers();
   if (responseContentType) {
