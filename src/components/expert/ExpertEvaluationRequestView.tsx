@@ -19,7 +19,9 @@ import {
 import {
   clearEvaluationDraft,
   loadEvaluationDraft,
+  loadEvaluationDraftReportId,
   saveEvaluationDraft,
+  saveEvaluationDraftReportId,
 } from "@/lib/expert/evaluationDraftStorage";
 import {
   formatDeadlineDue,
@@ -548,9 +550,16 @@ export function ExpertEvaluationRequestView({
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [draftReportId, setDraftReportId] = useState<string | null>(() =>
-    detail.reportId ? normalizeMongoId(detail.reportId) || null : null,
-  );
+  const [draftReportId, setDraftReportId] = useState<string | null>(() => {
+    const fromDetail = detail.reportId
+      ? normalizeMongoId(detail.reportId)
+      : "";
+    if (fromDetail) return fromDetail;
+    return (
+      normalizeMongoId(loadEvaluationDraftReportId(detail.requestId) ?? "") ||
+      null
+    );
+  });
   const [draftSaveState, setDraftSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
@@ -585,6 +594,14 @@ export function ExpertEvaluationRequestView({
     !formIsValid;
   const showSubmitButton = detail.canSubmit;
 
+  const adoptReportId = (rawId: string | null | undefined) => {
+    const id = rawId ? normalizeMongoId(rawId) : "";
+    if (!id) return;
+    draftReportIdRef.current = id;
+    setDraftReportId(id);
+    saveEvaluationDraftReportId(detail.requestId, id);
+  };
+
   useEffect(() => {
     draftReportIdRef.current = draftReportId;
   }, [draftReportId]);
@@ -592,6 +609,13 @@ export function ExpertEvaluationRequestView({
   useEffect(() => {
     formRef.current = form;
   }, [form]);
+
+  // Keep draft id in sync when accept/list finally provides reportId.
+  useEffect(() => {
+    if (detail.reportId) adoptReportId(detail.reportId);
+    // adoptReportId closes over requestId; only re-run when report id arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail.reportId, detail.requestId]);
 
   // Hydrate from server draft when available (preferred over local-only).
   useEffect(() => {
@@ -606,7 +630,7 @@ export function ExpertEvaluationRequestView({
     void (async () => {
       try {
         const report = await getReportForRequest(detail.requestId, {
-          reportId: detail.reportId,
+          reportId: detail.reportId || draftReportIdRef.current,
         });
         if (cancelled) return;
         if (report && isDraftReport(report)) {
@@ -622,10 +646,10 @@ export function ExpertEvaluationRequestView({
           );
           setForm(nextForm);
           saveEvaluationDraft(detail.requestId, nextForm);
-          setDraftReportId(normalizeMongoId(report._id) || null);
+          adoptReportId(report._id);
         } else if (report) {
-          // Already submitted — keep local empty; submit will 409 if retried.
-          setDraftReportId(normalizeMongoId(report._id) || null);
+          // Already submitted — keep id so later writes use PUT, not POST.
+          adoptReportId(report._id);
         }
       } catch (err) {
         if (process.env.NODE_ENV !== "production") {
@@ -667,11 +691,7 @@ export function ExpertEvaluationRequestView({
           if (generation !== saveGenerationRef.current || submittedRef.current) {
             return;
           }
-          const id = normalizeMongoId(report._id);
-          if (id) {
-            draftReportIdRef.current = id;
-            setDraftReportId(id);
-          }
+          adoptReportId(report._id);
           setDraftSaveState("saved");
         } catch (err) {
           if (generation !== saveGenerationRef.current) return;
@@ -703,20 +723,23 @@ export function ExpertEvaluationRequestView({
       if (submittedRef.current) return;
       const current = formRef.current;
       saveEvaluationDraft(detail.requestId, current);
+
+      const reportId = draftReportIdRef.current;
+      const hasContent = evaluateFormProgress(current).filled > 0;
+      // Avoid Strict Mode / empty unmount POSTs that 400 or create duplicate reports.
+      // Only hit the server when we already have a report id, or there is form content.
+      if (!reportId && !hasContent) return;
+
       void ensureDraftReport({
         requestId: detail.requestId,
-        reportId: draftReportIdRef.current,
+        reportId,
         form: current,
         coinName: detail.coinName,
         attachments: mediaToReportAttachments(detail.media),
       })
         .then((report) => {
           if (submittedRef.current) return;
-          const id = normalizeMongoId(report._id);
-          if (id) {
-            draftReportIdRef.current = id;
-            setDraftReportId(id);
-          }
+          adoptReportId(report._id);
         })
         .catch(() => {
           // best-effort flush

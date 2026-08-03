@@ -486,6 +486,8 @@ export function buildEvaluationDetail(opts: {
   request: BackendRequest;
   offerId?: string;
   unavailable?: boolean;
+  /** Override when accept/create already returned a report id. */
+  reportId?: string | null;
 }): EvaluationRequestDetail {
   const parsed = parseRequestPayload(opts.request.payload);
   const unavailable = Boolean(opts.unavailable);
@@ -495,11 +497,15 @@ export function buildEvaluationDetail(opts: {
     opts.request.status === "offered" &&
     Boolean(opts.offerId);
   const canSubmit = opts.request.status === "accepted" && !unavailable;
+  const reportId =
+    (opts.reportId ? normalizeMongoId(opts.reportId) : null) ||
+    extractReportIdFromRequest(opts.request) ||
+    undefined;
 
   return {
     requestId: normalizeMongoId(opts.request._id),
     displayId: resolveDisplayId(opts.request),
-    reportId: extractReportIdFromRequest(opts.request) ?? undefined,
+    reportId,
     offerId: opts.offerId ? normalizeMongoId(opts.offerId) : undefined,
     needsAccept,
     unavailable,

@@ -8,10 +8,17 @@ import {
   formatOfferErrorMessage,
   skipOffer,
 } from "@/lib/expert/offersService";
-import { clearEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
+import {
+  clearEvaluationDraft,
+  loadEvaluationDraftReportId,
+  saveEvaluationDraftReportId,
+} from "@/lib/expert/evaluationDraftStorage";
 import { buildEvaluationDetail } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
-import { ensureDraftReport } from "@/lib/expert/reportsService";
+import {
+  ensureDraftReport,
+  extractReportIdFromRequest,
+} from "@/lib/expert/reportsService";
 import { formatRequestId, normalizeMongoId } from "@/lib/expert/format";
 import type { EvaluationRequestDetail } from "@/lib/expert/types";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -41,6 +48,10 @@ export function ExpertQueueRequestPageClient({
   /** After a successful Accept — keeps the evaluation form open. */
   const [accepted, setAccepted] = useState(false);
   const [showAcceptedToast, setShowAcceptedToast] = useState(false);
+  /** Report id from accept/create — list API often omits it until later. */
+  const [knownReportId, setKnownReportId] = useState<string | null>(() =>
+    loadEvaluationDraftReportId(requestId),
+  );
 
   const request = useMemo(
     () =>
@@ -66,6 +77,18 @@ export function ExpertQueueRequestPageClient({
   // Prefer live offer match; keep URL offerId after accept so reassign can still call skip.
   const actionOfferId = matchedOfferId ?? offerId;
 
+  useEffect(() => {
+    const fromRequest = request
+      ? extractReportIdFromRequest(request)
+      : null;
+    const fromLocal = loadEvaluationDraftReportId(requestId);
+    const next = fromRequest || fromLocal;
+    if (next) {
+      setKnownReportId((prev) => prev || next);
+      saveEvaluationDraftReportId(requestId, next);
+    }
+  }, [request, requestId]);
+
   const detail = useMemo<EvaluationRequestDetail | null>(() => {
     if (!request) return null;
 
@@ -83,8 +106,9 @@ export function ExpertQueueRequestPageClient({
       request: requestForView,
       offerId: actionOfferId,
       unavailable: unavailable || lostOffer,
+      reportId: knownReportId,
     });
-  }, [request, actionOfferId, unavailable, accepted]);
+  }, [request, actionOfferId, unavailable, accepted, knownReportId]);
 
   // Already accepted on the server → open evaluation form.
   useEffect(() => {
@@ -114,7 +138,16 @@ export function ExpertQueueRequestPageClient({
           ? request.coinTitle.trim()
           : undefined;
       try {
-        await ensureDraftReport({ requestId, coinName });
+        const draft = await ensureDraftReport({
+          requestId,
+          reportId: knownReportId,
+          coinName,
+        });
+        const reportId = normalizeMongoId(draft._id);
+        if (reportId) {
+          setKnownReportId(reportId);
+          saveEvaluationDraftReportId(requestId, reportId);
+        }
       } catch (draftErr) {
         if (process.env.NODE_ENV !== "production") {
           console.warn("[expert] initial draft create failed", draftErr);
@@ -140,6 +173,11 @@ export function ExpertQueueRequestPageClient({
         setAccepted(true);
         setUnavailable(false);
         setAcceptError(null);
+        const recoveredId = extractReportIdFromRequest(latestRequest);
+        if (recoveredId) {
+          setKnownReportId(recoveredId);
+          saveEvaluationDraftReportId(requestId, recoveredId);
+        }
         return;
       }
 
@@ -158,7 +196,7 @@ export function ExpertQueueRequestPageClient({
     } finally {
       setAccepting(false);
     }
-  }, [actionOfferId, accepting, requestId, refresh]);
+  }, [actionOfferId, accepting, requestId, refresh, request, knownReportId]);
 
   const handleReassign = useCallback(async () => {
     if (!actionOfferId || reassigning) return;
@@ -177,6 +215,7 @@ export function ExpertQueueRequestPageClient({
       });
       await skipOffer(actionOfferId);
       clearEvaluationDraft(requestId);
+      setKnownReportId(null);
       await refresh();
       router.push("/expert/queue");
     } catch (err) {
