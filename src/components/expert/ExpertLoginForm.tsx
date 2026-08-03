@@ -20,9 +20,13 @@ import { useEffect, useState, type FormEvent } from "react";
 const alertClass =
   "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800";
 
+const invalidFieldClass =
+  "border-red-500 focus:border-red-500 focus:ring-red-500/20";
+
 export function ExpertLoginForm() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [accountDisabled, setAccountDisabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,13 +41,26 @@ export function ExpertLoginForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    setEmailError(null);
+    setPasswordError(null);
     setAccountDisabled(false);
-    setIsSubmitting(true);
 
     const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "");
+    const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
+
+    let hasFieldError = false;
+    if (!email) {
+      setEmailError("Email is required");
+      hasFieldError = true;
+    }
+    if (!password) {
+      setPasswordError("Password is required");
+      hasFieldError = true;
+    }
+    if (hasFieldError) return;
+
+    setIsSubmitting(true);
 
     try {
       const { expert } = await login(email, password);
@@ -58,10 +75,11 @@ export function ExpertLoginForm() {
         if (err.status === 403) {
           setAccountDisabled(true);
         } else {
-          setError(err.message);
+          // Auth failure — show under password (LinkedIn-style), same API message.
+          setPasswordError(err.message);
         }
       } else {
-        setError("Something went wrong. Please try again.");
+        setPasswordError("Something went wrong. Please try again.");
       }
     } finally {
       setIsSubmitting(false);
@@ -76,12 +94,6 @@ export function ExpertLoginForm() {
         </p>
       ) : null}
 
-      {error ? (
-        <p className={alertClass} role="alert">
-          {error}
-        </p>
-      ) : null}
-
       <InputGroup
         label="Email"
         id="expert-email"
@@ -90,6 +102,12 @@ export function ExpertLoginForm() {
         autoComplete="username"
         placeholder="you@example.com"
         required
+        error={emailError ?? undefined}
+        aria-invalid={emailError ? true : undefined}
+        inputClassName={emailError ? invalidFieldClass : ""}
+        onChange={() => {
+          if (emailError) setEmailError(null);
+        }}
       />
       <PasswordInputGroup
         label="Password"
@@ -98,6 +116,12 @@ export function ExpertLoginForm() {
         autoComplete="current-password"
         placeholder="••••••••"
         required
+        error={passwordError ?? undefined}
+        aria-invalid={passwordError ? true : undefined}
+        inputClassName={passwordError ? invalidFieldClass : ""}
+        onChange={() => {
+          if (passwordError) setPasswordError(null);
+        }}
       />
 
       {/* <div className="flex justify-end">
