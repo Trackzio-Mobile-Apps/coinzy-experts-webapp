@@ -1,3 +1,5 @@
+import type { BackendExpertReview } from "@/lib/expert/types";
+
 export type ExpertEarningsSummary = {
   totalInr: number;
   pendingInr: number;
@@ -22,9 +24,19 @@ export type ExpertReview = {
   reviewerName: string;
   dateLabel: string;
   requestId: string;
+  displayId: string;
   coinName: string;
   rating: number;
+  sentiment: string;
   comment: string;
+  platform: string;
+};
+
+export type ExpertReviewsResult = {
+  expertId: string;
+  average: number | null;
+  count: number;
+  reviews: ExpertReview[];
 };
 
 const STORAGE_PREFIX = "coinzy_expert_extended_profile_";
@@ -92,13 +104,54 @@ export function saveExtendedProfile(
   localStorage.setItem(`${STORAGE_PREFIX}${expertId}`, JSON.stringify(profile));
 }
 
-export function getReviewSummary(reviews: ExpertReview[]) {
-  if (reviews.length === 0) {
-    return { average: 0, count: 0 };
+function formatReviewDate(isoDate: unknown): string {
+  if (!isoDate || typeof isoDate !== "string") return "—";
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+export function mapBackendReviewsToExpertReviews(
+  reviews: BackendExpertReview[],
+): ExpertReview[] {
+  return reviews.map((review) => ({
+    id: review._id,
+    reviewerName: review.reviewerDisplayName?.trim() || "Anonymous",
+    dateLabel: formatReviewDate(review.ratedAt || review.createdAt),
+    requestId: review.requestId,
+    displayId: review.displayId?.trim() || "",
+    coinName: review.coinName?.trim() || "—",
+    rating: review.rating,
+    sentiment: review.sentiment?.trim() || "",
+    comment: review.comment?.trim() || "",
+    platform: review.platform?.trim() || "",
+  }));
+}
+
+export function getReviewSummary(
+  reviews: ExpertReview[],
+  apiSummary?: { average: number | null; count: number },
+) {
+  if (apiSummary) {
+    return {
+      average: apiSummary.average ?? 0,
+      count: apiSummary.count,
+      hasAverage: apiSummary.average != null,
+    };
   }
+
+  if (reviews.length === 0) {
+    return { average: 0, count: 0, hasAverage: false };
+  }
+
   const total = reviews.reduce((sum, review) => sum + review.rating, 0);
   return {
     average: Math.round((total / reviews.length) * 10) / 10,
     count: reviews.length,
+    hasAverage: true,
   };
 }

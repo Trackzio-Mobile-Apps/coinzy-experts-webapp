@@ -8,8 +8,13 @@ import {
   resolveCountryLabel,
   type Country,
 } from "@/lib/expert/countriesService";
-import { getReviewSummary, type ExpertReview } from "@/lib/expert/expertProfileExtended";
+import {
+  getReviewSummary,
+  type ExpertReview,
+} from "@/lib/expert/expertProfileExtended";
 import { useExpertProfile } from "@/lib/expert/expertProfileStore";
+import { formatQueueRequestIdLabel } from "@/lib/expert/format";
+import { getExpertReviews } from "@/lib/expert/reviewsService";
 import { useEffect, useState } from "react";
 
 function profileInitials(firstName: string, lastName: string): string {
@@ -28,9 +33,66 @@ function formatSupportedCountries(
     .join(", ");
 }
 
+function formatAverageRating(average: number, hasAverage: boolean): string {
+  if (!hasAverage) return "—";
+  return average.toFixed(1);
+}
+
+function RatingStars({ rating }: { rating: number }) {
+  const filled = Math.max(0, Math.min(5, Math.round(rating)));
+  return (
+    <span className="text-amber-500" aria-label={`${rating} out of 5 stars`}>
+      {"★".repeat(filled)}
+      <span className="text-text-muted/40">{"★".repeat(5 - filled)}</span>
+    </span>
+  );
+}
+
+function ExpertReviewCard({ review }: { review: ExpertReview }) {
+  const requestLabel = review.displayId
+    ? formatQueueRequestIdLabel(review.displayId)
+    : "—";
+
+  return (
+    <article className="border-b border-border/60 py-5 last:border-b-0 last:pb-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <h3 className="text-sm font-semibold text-text">{review.reviewerName}</h3>
+          <p className="text-xs text-text-muted">{review.dateLabel}</p>
+        </div>
+        <RatingStars rating={review.rating} />
+      </div>
+      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+            Request
+          </dt>
+          <dd className="mt-0.5 text-text">{requestLabel}</dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+            Coin
+          </dt>
+          <dd className="mt-0.5 text-text">{review.coinName}</dd>
+        </div>
+      </dl>
+      {review.comment ? (
+        <p className="mt-3 text-sm leading-relaxed text-text-muted">
+          &ldquo;{review.comment}&rdquo;
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
 export function ExpertProfileScreen() {
   const { profile, isLoading } = useExpertProfile();
   const [countries, setCountries] = useState<Country[]>([]);
+  const [reviews, setReviews] = useState<ExpertReview[]>([]);
+  const [reviewAverage, setReviewAverage] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,8 +111,52 @@ export function ExpertProfileScreen() {
     };
   }, []);
 
-  const reviews: ExpertReview[] = [];
-  const reviewSummary = getReviewSummary(reviews);
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    let cancelled = false;
+    setReviewsLoading(true);
+    setReviewsLoaded(false);
+
+    void (async () => {
+      try {
+        const result = await getExpertReviews();
+        if (cancelled) return;
+
+        setReviews(result.reviews);
+        setReviewAverage(result.average);
+        setReviewCount(result.count);
+        setReviewsLoaded(true);
+
+        console.log("[expert] profile reviews loaded", {
+          count: result.count,
+          average: result.average,
+          reviews: result.reviews,
+          isEmpty: result.reviews.length === 0,
+        });
+      } catch (error) {
+        if (cancelled) return;
+
+        setReviews([]);
+        setReviewAverage(null);
+        setReviewCount(0);
+        setReviewsLoaded(true);
+
+        console.warn("[expert] GET /experts/me/reviews failed", error);
+      } finally {
+        if (!cancelled) setReviewsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id]);
+
+  const reviewSummary = getReviewSummary(reviews, {
+    average: reviewAverage,
+    count: reviewCount,
+  });
 
   if (isLoading || !profile) {
     return <ExpertProfileSkeleton />;
@@ -152,14 +258,18 @@ export function ExpertProfileScreen() {
         </div>
       </section>
 
-      {reviews.length === 0 ? (
+      {reviewsLoading ? (
+        <section className="rounded-2xl border border-border/70 bg-surface p-6 shadow-sm sm:p-8">
+          <p className="text-sm text-text-muted">Loading reviews…</p>
+        </section>
+      ) : reviews.length === 0 && reviewsLoaded ? (
         <section className="rounded-2xl border border-border/70 bg-surface shadow-sm">
           <ExpertEmptyState
             title="No Reviews Yet"
             description="Reviews from your completed evaluations will appear here."
           />
         </section>
-      ) : (
+      ) : reviews.length > 0 ? (
         <section className="rounded-2xl border border-border/70 bg-surface p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-2 border-b border-border/60 pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -172,15 +282,24 @@ export function ExpertProfileScreen() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl font-semibold text-text">
-                {reviewSummary.average}
+                {formatAverageRating(
+                  reviewSummary.average,
+                  reviewSummary.hasAverage,
+                )}
               </span>
               <span className="text-sm text-text-muted">
-                {reviewSummary.count} reviews
+                {reviewSummary.count}{" "}
+                {reviewSummary.count === 1 ? "review" : "reviews"}
               </span>
             </div>
           </div>
+          <div className="mt-2">
+            {reviews.map((review) => (
+              <ExpertReviewCard key={review.id} review={review} />
+            ))}
+          </div>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }
