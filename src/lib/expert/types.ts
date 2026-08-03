@@ -122,6 +122,33 @@ export type ExpertMeApiData = {
   expert: BackendExpert;
 };
 
+/** Single review from `GET /experts/me/reviews`. */
+export type BackendExpertReview = {
+  _id: string;
+  userId: string;
+  reportId: string;
+  requestId: string;
+  expertId: string;
+  displayId: string;
+  coinName: string;
+  reviewerDisplayName: string;
+  rating: number;
+  sentiment: string;
+  comment: string;
+  platform: string;
+  ratedAt: string;
+  hasRated: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ExpertReviewsApiData = {
+  expertId: string;
+  average: number | null;
+  count: number;
+  reviews: BackendExpertReview[];
+};
+
 export type RequestStatus =
   | "created"
   | "allocating"
