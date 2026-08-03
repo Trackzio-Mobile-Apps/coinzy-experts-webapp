@@ -3,10 +3,6 @@
 import { normalizeMongoId } from "@/lib/expert/format";
 import { buildQueueList } from "@/lib/expert/requestMappers";
 import {
-  hydrateServerReportMap,
-  syncReportMappingsFromRequests,
-} from "@/lib/expert/reportsService";
-import {
   getAcceptedRequests,
   getExpertOffers,
   getExpertRequests,
@@ -77,10 +73,6 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
       let nextRequests: BackendRequest[] | undefined;
       let nextAccepted: BackendRequest[] | undefined;
 
-      if (scope === "all" || scope === "requests") {
-        await hydrateServerReportMap();
-      }
-
       if (scope === "all" || scope === "offers") {
         nextOffers = await getExpertOffers();
         setOffers(nextOffers);
@@ -92,8 +84,6 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
           getExpertRequests(),
           getAcceptedRequests(),
         ]);
-        syncReportMappingsFromRequests(nextRequests);
-        syncReportMappingsFromRequests(nextAccepted);
         setRequests(nextRequests);
         setAcceptedRequests(nextAccepted);
         console.log("[expert] GET /experts/me/requests", nextRequests);

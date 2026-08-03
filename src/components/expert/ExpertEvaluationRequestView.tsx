@@ -33,7 +33,6 @@ import { DEADLINE_EXCEEDED_TOAST_KEY } from "@/lib/expert/constants";
 import {
   ensureDraftReport,
   getReportForRequest,
-  getStoredReportIdForRequest,
   isDraftReport,
   mediaToReportAttachments,
   reportToFormState,
@@ -550,7 +549,7 @@ export function ExpertEvaluationRequestView({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftReportId, setDraftReportId] = useState<string | null>(() =>
-    getStoredReportIdForRequest(detail.requestId),
+    detail.reportId ? normalizeMongoId(detail.reportId) || null : null,
   );
   const [draftSaveState, setDraftSaveState] = useState<
     "idle" | "saving" | "saved" | "error"
@@ -606,7 +605,9 @@ export function ExpertEvaluationRequestView({
 
     void (async () => {
       try {
-        const report = await getReportForRequest(detail.requestId);
+        const report = await getReportForRequest(detail.requestId, {
+          reportId: detail.reportId,
+        });
         if (cancelled) return;
         if (report && isDraftReport(report)) {
           const serverForm = reportToFormState(report);
@@ -638,7 +639,7 @@ export function ExpertEvaluationRequestView({
     return () => {
       cancelled = true;
     };
-  }, [detail.canSubmit, detail.requestId]);
+  }, [detail.canSubmit, detail.requestId, detail.reportId]);
 
   // Local autosave always; server draft when at least one field is filled.
   useEffect(() => {

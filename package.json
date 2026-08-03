@@ -14,7 +14,6 @@
     "generate:mobile-jwt": "node scripts/generate-mobile-user-jwt.mjs"
   },
   "dependencies": {
-    "@netlify/blobs": "^8.2.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "next": "16.2.6",

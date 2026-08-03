@@ -311,6 +311,8 @@ export type EvaluationRequestDetail = {
   requestId: string;
   /** Human-readable id from API (`displayId`), e.g. EV-KUBGCWV5. */
   displayId: string;
+  /** Linked report id from the backend request, when available. */
+  reportId?: string;
   offerId?: string;
   /** Request is offered and waiting for this expert to accept. */
   needsAccept: boolean;

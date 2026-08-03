@@ -7,8 +7,8 @@ import { normalizeMongoId } from "@/lib/expert/format";
 import { mapRequestToDraftItem } from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import {
+  extractReportIdFromRequest,
   getReportForRequest,
-  getStoredReportIdForRequest,
   isDraftReport,
   reportProgressPercent,
 } from "@/lib/expert/reportsService";
@@ -35,9 +35,9 @@ export function ExpertDraftsPageClient() {
               : 0;
 
             let progress = localProgress;
-            const storedReportId = getStoredReportIdForRequest(requestId);
-            if (storedReportId) {
-              const report = await getReportForRequest(requestId);
+            const reportId = extractReportIdFromRequest(request);
+            if (reportId) {
+              const report = await getReportForRequest(requestId, { request });
               if (report && isDraftReport(report)) {
                 progress = Math.max(progress, reportProgressPercent(report));
               }
