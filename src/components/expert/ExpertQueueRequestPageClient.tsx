@@ -20,7 +20,10 @@ import {
   extractReportIdFromRequest,
 } from "@/lib/expert/reportsService";
 import { formatRequestId, normalizeMongoId } from "@/lib/expert/format";
-import type { EvaluationRequestDetail } from "@/lib/expert/types";
+import type {
+  BackendRequest,
+  EvaluationRequestDetail,
+} from "@/lib/expert/types";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -53,13 +56,37 @@ export function ExpertQueueRequestPageClient({
     loadEvaluationDraftReportId(requestId),
   );
 
-  const request = useMemo(
+  const requestFromStore = useMemo(
     () =>
       requests.find((r) => normalizeMongoId(r._id) === requestId) ??
       acceptedRequests.find((r) => normalizeMongoId(r._id) === requestId) ??
       offers.find((o) => normalizeMongoId(o.request._id) === requestId)?.request,
     [requests, acceptedRequests, offers, requestId],
   );
+
+  // Keep the last known request so background refreshes cannot flash
+  // "Request not found" while offers/accepted lists catch up after Accept.
+  const [stickyRequest, setStickyRequest] = useState<BackendRequest | null>(
+    null,
+  );
+  const storeRequestKey = requestFromStore
+    ? `${normalizeMongoId(requestFromStore._id)}:${requestFromStore.status}`
+    : "";
+  const [seenStoreKey, setSeenStoreKey] = useState(storeRequestKey);
+  if (storeRequestKey !== seenStoreKey) {
+    setSeenStoreKey(storeRequestKey);
+    if (requestFromStore) {
+      setStickyRequest(requestFromStore);
+    }
+  } else if (
+    accepted &&
+    !requestFromStore &&
+    stickyRequest &&
+    stickyRequest.status !== "accepted"
+  ) {
+    setStickyRequest({ ...stickyRequest, status: "accepted" as const });
+  }
+  const request = requestFromStore ?? stickyRequest;
 
   const matchedOffer = useMemo(() => {
     const byOfferId = offerId
@@ -153,7 +180,8 @@ export function ExpertQueueRequestPageClient({
           console.warn("[expert] initial draft create failed", draftErr);
         }
       }
-      await refresh();
+      // Keep the evaluation form mounted — sync queue data in the background.
+      await refresh({ silent: true });
     } catch (err) {
       const status = err instanceof ExpertOffersError ? err.status : 0;
       const rawMessage =
@@ -229,7 +257,8 @@ export function ExpertQueueRequestPageClient({
     }
   }, [actionOfferId, reassigning, requestId, refresh, router]);
 
-  if (isLoading) {
+  // Only skeleton on first load — never unmount the form after it has opened.
+  if (isLoading && !detail) {
     return <ExpertRequestDetailSkeleton />;
   }
 
