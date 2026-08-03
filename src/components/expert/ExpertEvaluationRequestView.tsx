@@ -617,7 +617,8 @@ export function ExpertEvaluationRequestView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail.reportId, detail.requestId]);
 
-  // Hydrate from server draft when available (preferred over local-only).
+  // Hydrate once when the form becomes editable for this request.
+  // Do not re-run when reportId arrives later — that only syncs the id (effect above).
   useEffect(() => {
     if (!detail.canSubmit) {
       setHydrated(true);
@@ -663,7 +664,9 @@ export function ExpertEvaluationRequestView({
     return () => {
       cancelled = true;
     };
-  }, [detail.canSubmit, detail.requestId, detail.reportId]);
+    // reportId intentionally omitted — late id sync uses adoptReportId only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail.canSubmit, detail.requestId]);
 
   // Local autosave always; server draft when at least one field is filled.
   useEffect(() => {
