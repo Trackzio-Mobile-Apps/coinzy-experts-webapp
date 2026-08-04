@@ -7,6 +7,7 @@ import {
   normalizeMongoId,
   type HistoryPeriodFilter,
 } from "@/lib/expert/format";
+import { EVALUATION_DUE_SOON_HOURS } from "@/lib/expert/constants";
 import { extractReportIdFromRequest } from "@/lib/expert/reportsService";
 import type {
   BackendOffer,
@@ -463,6 +464,60 @@ export function buildQueueList(
   return [...offerItems, ...activeItems].sort(
     (a, b) => a.deadlineDays - b.deadlineDays,
   );
+}
+
+export type EvaluationDueSoonCandidate = {
+  requestId: string;
+  displayId: string;
+  hoursRemaining: number;
+  deadlineAt: string;
+};
+
+const MS_PER_HOUR = 1000 * 60 * 60;
+
+/**
+ * Among incomplete accepted evaluations, pick the one with the least time left
+ * that still falls inside the due-soon reminder window (default 24h).
+ */
+export function findSoonestEvaluationDueSoon(
+  accepted: BackendRequest[],
+  nowMs = Date.now(),
+  windowHours = EVALUATION_DUE_SOON_HOURS,
+): EvaluationDueSoonCandidate | null {
+  const windowMs = windowHours * MS_PER_HOUR;
+  let best: EvaluationDueSoonCandidate | null = null;
+  let bestRemainingMs = Number.POSITIVE_INFINITY;
+
+  for (const request of accepted) {
+    const status = request.status;
+    if (
+      status === "completed" ||
+      status === "report_submitted" ||
+      status === "deadline_missed" ||
+      status === "expired" ||
+      status === "cancelled"
+    ) {
+      continue;
+    }
+
+    const deadlineAt = normalizeIsoDate(request.deadlineAt);
+    if (!deadlineAt) continue;
+
+    const remainingMs = new Date(deadlineAt).getTime() - nowMs;
+    if (remainingMs <= 0 || remainingMs > windowMs) continue;
+
+    if (remainingMs >= bestRemainingMs) continue;
+
+    bestRemainingMs = remainingMs;
+    best = {
+      requestId: normalizeMongoId(request._id),
+      displayId: resolveDisplayId(request),
+      hoursRemaining: Math.max(1, Math.ceil(remainingMs / MS_PER_HOUR)),
+      deadlineAt,
+    };
+  }
+
+  return best;
 }
 
 export function filterHistoryByPeriod(

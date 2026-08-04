@@ -1,6 +1,7 @@
 "use client";
 
 import { ExpertAvailabilityPromptGate } from "@/components/expert/ExpertAvailabilityPromptGate";
+import { ExpertEvaluationDueSoonGate } from "@/components/expert/ExpertEvaluationDueSoonGate";
 import { ExpertProfileInitializer } from "@/components/expert/ExpertProfileInitializer";
 import { ExpertPanelDataProvider } from "@/lib/expert/expertPanelDataStore";
 import { ExpertSocketProvider } from "@/lib/expert/expertSocketProvider";
@@ -14,6 +15,7 @@ export function ExpertPanelProviders({ children }: { children: ReactNode }) {
         <ExpertSocketProvider>
           <ExpertProfileInitializer />
           <ExpertAvailabilityPromptGate />
+          <ExpertEvaluationDueSoonGate />
           {children}
         </ExpertSocketProvider>
       </ExpertPanelDataProvider>
