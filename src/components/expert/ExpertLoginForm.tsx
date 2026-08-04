@@ -17,6 +17,7 @@ import {
 import {
   AVAILABILITY_PROMPT_DISMISSED_KEY,
   AVAILABILITY_PROMPT_KEY,
+  EVALUATION_DUE_SOON_PROMPT_KEY,
 } from "@/lib/expert/constants";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -72,6 +73,7 @@ export function ExpertLoginForm() {
     try {
       const { expert } = await login(email, password);
       window.sessionStorage.setItem("coinzy_expert_login_success", "1");
+      window.sessionStorage.setItem(EVALUATION_DUE_SOON_PROMPT_KEY, "1");
       if (!expert.isAvailableForRequests) {
         window.sessionStorage.setItem(AVAILABILITY_PROMPT_KEY, "1");
         window.sessionStorage.removeItem(AVAILABILITY_PROMPT_DISMISSED_KEY);
