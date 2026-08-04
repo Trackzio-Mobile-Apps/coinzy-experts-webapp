@@ -23,8 +23,8 @@ type ExpertQueuePageBodyProps = {
   onSkipOffer?: (offerId: string, requestId: string) => void | Promise<void>;
 };
 
-const skipButtonClass =
-  "inline-flex items-center justify-center rounded-lg border border-border bg-surface px-4 py-2.5 text-center text-sm font-semibold text-text transition-colors hover:bg-input-bg disabled:cursor-not-allowed disabled:opacity-60";
+const reassignButtonClass =
+  "inline-flex items-center justify-center rounded-lg border border-primary px-5 py-2.5 text-center text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50";
 
 const actionRowClass = "flex flex-wrap items-center justify-end gap-2";
 
@@ -144,14 +144,15 @@ export function ExpertQueuePageBody({
                                 !onSkipOffer ||
                                 skippingOfferId === row.offerId
                               }
+                              title="Decline this offer and return it to the pool"
                               onClick={() =>
                                 void onSkipOffer?.(row.offerId ?? "", row.id)
                               }
-                              className={skipButtonClass}
+                              className={reassignButtonClass}
                             >
                               {skippingOfferId === row.offerId
-                                ? "Skipping…"
-                                : "Skip / Reassign"}
+                                ? "Reassigning…"
+                                : "Reassign"}
                             </button>
                             <Link
                               href={`/expert/queue/${row.id}?offerId=${encodeURIComponent(row.offerId ?? "")}`}

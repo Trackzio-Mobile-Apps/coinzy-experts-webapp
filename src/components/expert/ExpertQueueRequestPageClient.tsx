@@ -121,13 +121,17 @@ export function ExpertQueueRequestPageClient({
 
     const isOffered = request.status === "offered";
     const lostOffer = isOffered && !actionOfferId && !accepted;
+    const deadlineMissedStatus =
+      request.status === "deadline_missed" || request.status === "expired";
 
-    // Once accepted on this screen, force accepted status so the form opens
-    // even if refresh is still catching up.
+    // Once accepted on this screen, keep the evaluation form open even if
+    // refresh is still catching up — but never overwrite a missed deadline.
     const requestForView =
-      accepted || request.status === "accepted"
-        ? { ...request, status: "accepted" as const }
-        : request;
+      deadlineMissedStatus
+        ? request
+        : accepted || request.status === "accepted"
+          ? { ...request, status: "accepted" as const }
+          : request;
 
     return buildEvaluationDetail({
       request: requestForView,
@@ -139,7 +143,11 @@ export function ExpertQueueRequestPageClient({
 
   // Already accepted on the server → open evaluation form.
   useEffect(() => {
-    if (request?.status === "accepted") {
+    if (
+      request?.status === "accepted" ||
+      request?.status === "deadline_missed" ||
+      request?.status === "expired"
+    ) {
       setAccepted(true);
       setUnavailable(false);
     }

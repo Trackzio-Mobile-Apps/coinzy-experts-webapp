@@ -46,9 +46,13 @@ function asNumber(value: unknown): number | null {
 const MEDIA_GROUP_LABELS: Record<string, string> = {
   obverse: "Obverse",
   reverse: "Reverse",
-  edge: "Damage/Tear",
-  damage: "Damage/Tear",
-  tear: "Damage/Tear",
+  edge: "Rim/Edge",
+  rim: "Rim/Edge",
+  "rim/edge": "Rim/Edge",
+  "rim-edge": "Rim/Edge",
+  damage: "Rim/Edge",
+  tear: "Rim/Edge",
+  "damage/tear": "Rim/Edge",
   video: "Videos",
   videos: "Videos",
 };
@@ -218,7 +222,7 @@ export function parseRequestPayload(payload: unknown) {
   return { coinName, type, userNotes, valueInr, media };
 }
 
-const QUEUE_THUMBNAIL_GROUP_ORDER = ["Obverse", "Reverse", "Damage/Tear"] as const;
+const QUEUE_THUMBNAIL_GROUP_ORDER = ["Obverse", "Reverse", "Rim/Edge"] as const;
 
 function firstImageUrlInGroup(
   media: RequestMediaItem[],
@@ -496,7 +500,14 @@ export function buildEvaluationDetail(opts: {
     !unavailable &&
     opts.request.status === "offered" &&
     Boolean(opts.offerId);
-  const canSubmit = opts.request.status === "accepted" && !unavailable;
+  const status = opts.request.status;
+  const deadlineAt = normalizeIsoDate(opts.request.deadlineAt);
+  const deadlineExceededByStatus =
+    status === "deadline_missed" || status === "expired";
+  const deadlineExceeded =
+    deadlineExceededByStatus || isDeadlineExceeded(deadlineAt);
+  const canSubmit =
+    opts.request.status === "accepted" && !unavailable && !deadlineExceeded;
   const reportId =
     (opts.reportId ? normalizeMongoId(opts.reportId) : null) ||
     extractReportIdFromRequest(opts.request) ||
@@ -510,8 +521,9 @@ export function buildEvaluationDetail(opts: {
     needsAccept,
     unavailable,
     canSubmit,
-    deadlineDays: daysUntil(opts.request.deadlineAt),
-    deadlineAt: normalizeIsoDate(opts.request.deadlineAt),
+    deadlineExceeded,
+    deadlineDays: daysUntil(deadlineAt),
+    deadlineAt,
     receivedAt: normalizeIsoDate(opts.request.createdAt),
     submittedDisplay: formatSubmitted(
       opts.request.acceptedAt ?? opts.request.createdAt,

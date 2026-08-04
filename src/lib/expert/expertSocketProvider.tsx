@@ -25,11 +25,13 @@ import type {
 const OFFER_TOAST_DEDUPE_MS = 60_000;
 
 type OfferedListener = (payload: ExpertSocketEventPayload) => void;
+type DeadlineMissedListener = (payload: ExpertSocketEventPayload) => void;
 
 type ExpertSocketContextValue = {
   connectionState: ExpertSocketConnectionState;
   isSocketConnected: boolean;
   subscribeOffered: (listener: OfferedListener) => () => void;
+  subscribeDeadlineMissed: (listener: DeadlineMissedListener) => () => void;
 };
 
 const ExpertSocketContext = createContext<ExpertSocketContextValue | null>(null);
@@ -42,6 +44,7 @@ export function ExpertSocketProvider({ children }: { children: ReactNode }) {
 
   const refreshRef = useRef(refresh);
   const offeredListenersRef = useRef(new Set<OfferedListener>());
+  const deadlineMissedListenersRef = useRef(new Set<DeadlineMissedListener>());
   const recentOfferToastsRef = useRef(new Map<string, number>());
   const handlersRef = useRef<ExpertSocketHandlers>({
     onConnectionStateChange: setConnectionState,
@@ -71,6 +74,15 @@ export function ExpertSocketProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const notifyDeadlineMissed = useCallback(
+    (payload: ExpertSocketEventPayload) => {
+      for (const listener of deadlineMissedListenersRef.current) {
+        listener(payload);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     handlersRef.current = {
       onConnectionStateChange: setConnectionState,
@@ -90,9 +102,10 @@ export function ExpertSocketProvider({ children }: { children: ReactNode }) {
       onDeadlineMissed: (payload) => {
         console.log("[expert-socket] refresh triggered (requests)", payload);
         void refreshRef.current({ silent: true, scope: "requests" });
+        notifyDeadlineMissed(payload);
       },
     };
-  }, [notifyOffered]);
+  }, [notifyDeadlineMissed, notifyOffered]);
 
   useEffect(() => {
     if (!isInitialized || !profile?.id) {
@@ -129,13 +142,24 @@ export function ExpertSocketProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const subscribeDeadlineMissed = useCallback(
+    (listener: DeadlineMissedListener) => {
+      deadlineMissedListenersRef.current.add(listener);
+      return () => {
+        deadlineMissedListenersRef.current.delete(listener);
+      };
+    },
+    [],
+  );
+
   const value = useMemo<ExpertSocketContextValue>(
     () => ({
       connectionState,
       isSocketConnected: connectionState === "connected",
       subscribeOffered,
+      subscribeDeadlineMissed,
     }),
-    [connectionState, subscribeOffered],
+    [connectionState, subscribeDeadlineMissed, subscribeOffered],
   );
 
   return (

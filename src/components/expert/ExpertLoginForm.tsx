@@ -1,6 +1,10 @@
 "use client";
 
-import { InputGroup, PasswordInputGroup, PrimaryButton } from "@/components/auth";
+import {
+  InputGroup,
+  PasswordInputGroup,
+  PrimaryButton,
+} from "@/components/auth";
 import {
   clearExpertAccountDisabled,
   isExpertAccountDisabled,
@@ -21,7 +25,10 @@ const alertClass =
   "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800";
 
 const invalidFieldClass =
-  "border-red-500 focus:border-red-500 focus:ring-red-500/20";
+  "border-2 border-[#FF9175] bg-[#FFF3F0] focus:border-[#FF9175] focus:ring-[#FF9175]/20";
+
+const labelFieldClass =
+  "[&_label]:text-xs [&_label]:font-bold [&_label]:leading-none [&_label]:text-[#555557]";
 
 export function ExpertLoginForm() {
   const router = useRouter();
@@ -87,7 +94,11 @@ export function ExpertLoginForm() {
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+    <form
+      className={`space-y-5 ${labelFieldClass}`}
+      onSubmit={handleSubmit}
+      noValidate
+    >
       {accountDisabled ? (
         <p className={alertClass} role="alert">
           Your expert account is not active. Contact support if you need access.
@@ -102,9 +113,10 @@ export function ExpertLoginForm() {
         autoComplete="username"
         placeholder="you@example.com"
         required
+        inputTone="surface"
         error={emailError ?? undefined}
         aria-invalid={emailError ? true : undefined}
-        inputClassName={emailError ? invalidFieldClass : ""}
+        inputClassName={emailError ? invalidFieldClass : "border-2"}
         onChange={() => {
           if (emailError) setEmailError(null);
         }}
@@ -116,28 +128,18 @@ export function ExpertLoginForm() {
         autoComplete="current-password"
         placeholder="••••••••"
         required
+        inputTone="surface"
         error={passwordError ?? undefined}
         aria-invalid={passwordError ? true : undefined}
-        inputClassName={passwordError ? invalidFieldClass : ""}
+        inputClassName={passwordError ? invalidFieldClass : "border-2"}
         onChange={() => {
           if (passwordError) setPasswordError(null);
         }}
       />
 
-      {/* <div className="flex justify-end">
-        <TextLink href="/forgot-password">Forgot password?</TextLink>
-      </div> */}
-
       <PrimaryButton type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Signing in…" : "Sign in"}
       </PrimaryButton>
-
-      {/* <p className="text-center text-sm text-text-muted">
-        Don&apos;t have an account?{" "}
-        <TextLink href="/sign-up" variant="strong">
-          Create account
-        </TextLink>
-      </p> */}
     </form>
   );
 }

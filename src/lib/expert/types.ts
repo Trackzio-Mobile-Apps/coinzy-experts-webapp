@@ -318,6 +318,8 @@ export type EvaluationRequestDetail = {
   needsAccept: boolean;
   unavailable: boolean;
   canSubmit: boolean;
+  /** True when the evaluation window has expired (time or server status). */
+  deadlineExceeded: boolean;
   deadlineDays: number;
   deadlineAt: string | null;
   receivedAt: string | null;

@@ -5,7 +5,7 @@
 export const coinzyColors = {
   canvas: "#f8f5f2",
   surface: "#ffffff",
-  primary: "#7a3e3e",
+  primary: "#7c3c3f",
   primaryHover: "#682f2f",
   primaryActive: "#5a2929",
   text: "#111111",
