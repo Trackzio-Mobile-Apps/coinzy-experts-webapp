@@ -32,6 +32,7 @@ import {
   normalizeMongoId,
 } from "@/lib/expert/format";
 import { DEADLINE_EXCEEDED_TOAST_KEY } from "@/lib/expert/constants";
+import { useExpertSocket } from "@/lib/expert/expertSocketProvider";
 import {
   ensureDraftReport,
   getReportForRequest,
@@ -45,11 +46,13 @@ import type { EvaluationRequestDetail, RequestMediaItem } from "@/lib/expert/typ
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EvaluationMediaLightbox } from "./EvaluationMediaLightbox";
 import { ExpandMediaGalleryIcon } from "./ExpandMediaGalleryIcon";
-import { MediaGroupScroller } from "./MediaGroupScroller";
 import { ExpertDeadlineExceededModal } from "./ExpertDeadlineExceededModal";
+import { ExpertLeaveWithoutSavingModal } from "./ExpertLeaveWithoutSavingModal";
+import { ExpertSubmitConfirmationModal } from "./ExpertSubmitConfirmationModal";
+import { MediaGroupScroller } from "./MediaGroupScroller";
 
 type ExpertEvaluationRequestViewProps = {
   detail: EvaluationRequestDetail;
@@ -430,24 +433,14 @@ function AcceptPanel({
   accepting,
   acceptDisabled,
   acceptError,
-  reassigning = false,
-  reassignDisabled = false,
-  reassignError,
   onAccept,
-  onReassign,
 }: {
   accepting: boolean;
   acceptDisabled: boolean;
   acceptError?: string | null;
-  reassigning?: boolean;
-  reassignDisabled?: boolean;
-  reassignError?: string | null;
   onAccept?: () => void | Promise<void>;
-  onReassign?: () => void | Promise<void>;
 }) {
-  const disabled = acceptDisabled || accepting || reassigning || !onAccept;
-  const skipDisabled =
-    reassignDisabled || reassigning || accepting || !onReassign;
+  const disabled = acceptDisabled || accepting || !onAccept;
 
   return (
     <div className="flex flex-col gap-5 rounded-xl border border-border/70 bg-surface px-5 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -464,21 +457,8 @@ function AcceptPanel({
             {acceptError}
           </p>
         ) : null}
-        {reassignError ? (
-          <p className="mt-3 max-w-xl rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-            {reassignError}
-          </p>
-        ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void onReassign?.()}
-          disabled={skipDisabled}
-          className="inline-flex items-center justify-center rounded-lg border border-border bg-transparent px-6 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-input-bg disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {reassigning ? "Skipping…" : "Skip / Reassign"}
-        </button>
         <button
           type="button"
           onClick={() => void onAccept?.()}
@@ -540,6 +520,7 @@ export function ExpertEvaluationRequestView({
   onSubmitted,
 }: ExpertEvaluationRequestViewProps) {
   const router = useRouter();
+  const { subscribeDeadlineMissed } = useExpertSocket();
   const formId = "expert-evaluation-form";
   const [form, setForm] = useState<EvaluationFormState>(() => {
     const local = loadEvaluationDraft(detail.requestId);
@@ -567,32 +548,76 @@ export function ExpertEvaluationRequestView({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showAllFieldErrors, setShowAllFieldErrors] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [leaveSaving, setLeaveSaving] = useState(false);
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [lastSavedFormJson, setLastSavedFormJson] = useState(() =>
+    JSON.stringify(form),
+  );
+  const [deadlineMissedFromSocket, setDeadlineMissedFromSocket] =
+    useState(false);
   const reassignDisabled = !detail.offerId || !onReassign;
   const draftReportIdRef = useRef(draftReportId);
   const saveGenerationRef = useRef(0);
   const formRef = useRef(form);
   const submittedRef = useRef(false);
+  const allowNavigationRef = useRef(false);
+  const pendingHrefRef = useRef<string | null>(null);
+  const hasUnsavedChangesRef = useRef(false);
 
-  const deadlineExceeded = isDeadlineExceeded(detail.deadlineAt);
-  // Re-check when the clock crosses the deadline while the page is open.
+  // Recompute against a ticking clock so the modal appears while the page stays open.
+  const deadlineExceededByTime = useMemo(
+    () => isDeadlineExceeded(detail.deadlineAt),
+    // nowMs intentionally invalidates this when the scheduled timer fires.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [detail.deadlineAt, nowMs],
+  );
+  const deadlineExceeded =
+    detail.deadlineExceeded ||
+    deadlineExceededByTime ||
+    deadlineMissedFromSocket;
+
+  // Schedule a wake-up when the deadline elapses (and poll near the end).
   useEffect(() => {
     if (!detail.deadlineAt || deadlineExceeded) return;
     const target = new Date(detail.deadlineAt).getTime();
     if (Number.isNaN(target)) return;
-    const delay = Math.max(0, target - Date.now()) + 250;
-    const timer = window.setTimeout(() => setNowMs(Date.now()), delay);
-    return () => window.clearTimeout(timer);
+
+    const tick = () => setNowMs(Date.now());
+    const remaining = target - Date.now();
+    const delay = Math.max(0, Math.min(remaining + 250, 2_147_483_647));
+    const timer = window.setTimeout(tick, delay);
+
+    // Fallback poll so a missed/clamped timer still surfaces the modal.
+    const intervalMs = remaining <= 60_000 ? 1_000 : 15_000;
+    const interval = window.setInterval(tick, intervalMs);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
   }, [detail.deadlineAt, deadlineExceeded, nowMs]);
+
+  useEffect(() => {
+    return subscribeDeadlineMissed((payload) => {
+      const missedId = payload.requestId
+        ? normalizeMongoId(payload.requestId)
+        : "";
+      if (!missedId || missedId !== detail.requestId) return;
+      setDeadlineMissedFromSocket(true);
+      setNowMs(Date.now());
+    });
+  }, [detail.requestId, subscribeDeadlineMissed]);
 
   const requiredFieldsComplete = areRequiredFieldsComplete(form);
   const formIsValid = useMemo(() => isEvaluationFormValid(form), [form]);
   const submitBlocked =
     !detail.canSubmit ||
     submitting ||
-    isDeadlineExceeded(detail.deadlineAt) ||
+    deadlineExceeded ||
     !requiredFieldsComplete ||
     !formIsValid;
-  const showSubmitButton = detail.canSubmit;
+  const showSubmitButton = detail.canSubmit && !deadlineExceeded;
 
   const adoptReportId = (rawId: string | null | undefined) => {
     const id = rawId ? normalizeMongoId(rawId) : "";
@@ -646,11 +671,16 @@ export function ExpertEvaluationRequestView({
             localFilled > serverFilled && localForm ? localForm : serverForm,
           );
           setForm(nextForm);
+          setLastSavedFormJson(JSON.stringify(nextForm));
           saveEvaluationDraft(detail.requestId, nextForm);
           adoptReportId(report._id);
+          setDraftSaveState("saved");
         } else if (report) {
           // Already submitted — keep id so later writes use PUT, not POST.
           adoptReportId(report._id);
+          setLastSavedFormJson(JSON.stringify(formRef.current));
+        } else {
+          setLastSavedFormJson(JSON.stringify(formRef.current));
         }
       } catch (err) {
         if (process.env.NODE_ENV !== "production") {
@@ -695,6 +725,7 @@ export function ExpertEvaluationRequestView({
             return;
           }
           adoptReportId(report._id);
+          setLastSavedFormJson(JSON.stringify(form));
           setDraftSaveState("saved");
         } catch (err) {
           if (generation !== saveGenerationRef.current) return;
@@ -762,6 +793,126 @@ export function ExpertEvaluationRequestView({
     };
   }, [detail.canSubmit, detail.requestId, detail.coinName, detail.media]);
 
+  const formJson = useMemo(() => JSON.stringify(form), [form]);
+  const hasUnsavedChanges =
+    detail.canSubmit &&
+    hydrated &&
+    !submittedRef.current &&
+    !deadlineExceeded &&
+    (draftSaveState === "error" ||
+      draftSaveState === "saving" ||
+      formJson !== lastSavedFormJson);
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
+
+  const requestLeaveNavigation = useCallback((href: string) => {
+    pendingHrefRef.current = href;
+    setLeaveModalOpen(true);
+  }, []);
+
+  const stayOnPage = useCallback(() => {
+    pendingHrefRef.current = null;
+    setLeaveModalOpen(false);
+  }, []);
+
+  const proceedWithLeave = useCallback(() => {
+    const href = pendingHrefRef.current;
+    pendingHrefRef.current = null;
+    setLeaveModalOpen(false);
+    allowNavigationRef.current = true;
+    if (href) {
+      router.push(href);
+    }
+  }, [router]);
+
+  const saveDraftAndLeave = useCallback(async () => {
+    if (leaveSaving) return;
+    setLeaveSaving(true);
+    try {
+      const current = formRef.current;
+      saveEvaluationDraft(detail.requestId, current);
+      const report = await saveDraftReport({
+        requestId: detail.requestId,
+        reportId: draftReportIdRef.current,
+        form: current,
+        coinName: detail.coinName,
+        attachments: mediaToReportAttachments(detail.media),
+      });
+      adoptReportId(report._id);
+      setLastSavedFormJson(JSON.stringify(current));
+      setDraftSaveState("saved");
+      proceedWithLeave();
+    } catch (err) {
+      setDraftSaveState("error");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[expert] leave save-as-draft failed", err);
+      }
+    } finally {
+      setLeaveSaving(false);
+    }
+  }, [
+    detail.coinName,
+    detail.media,
+    detail.requestId,
+    leaveSaving,
+    proceedWithLeave,
+  ]);
+
+  // Block in-app navigation and tab close when the evaluation form has unsaved work.
+  useEffect(() => {
+    if (!detail.canSubmit || !hydrated) return;
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChangesRef.current || allowNavigationRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    const onDocumentClick = (event: MouseEvent) => {
+      if (!hasUnsavedChangesRef.current || allowNavigationRef.current) return;
+      if (event.defaultPrevented) return;
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest("a[href]");
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      if (anchor.target && anchor.target !== "_self") return;
+      if (anchor.hasAttribute("download")) return;
+
+      const hrefAttr = anchor.getAttribute("href");
+      if (!hrefAttr || hrefAttr.startsWith("#")) return;
+
+      let url: URL;
+      try {
+        url = new URL(anchor.href, window.location.href);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin) return;
+
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (next === current) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      requestLeaveNavigation(next);
+    };
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("click", onDocumentClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("click", onDocumentClick, true);
+    };
+  }, [detail.canSubmit, hydrated, requestLeaveNavigation]);
+
   const setField = (key: string, value: string) => {
     setForm((prev) => {
       const nextForm = { ...prev, [key]: value };
@@ -816,8 +967,8 @@ export function ExpertEvaluationRequestView({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!detail.canSubmit) return;
-    if (isDeadlineExceeded(detail.deadlineAt)) {
+    if (!detail.canSubmit || submitting) return;
+    if (deadlineExceeded) {
       setSubmitError(
         "The allocated time for this evaluation has expired. This request can no longer be submitted.",
       );
@@ -846,11 +997,20 @@ export function ExpertEvaluationRequestView({
 
     setShowAllFieldErrors(false);
     setFieldErrors({});
+    setSubmitError(null);
+    setSubmitConfirmOpen(true);
+  }
+
+  async function confirmSubmitReport() {
+    if (!detail.canSubmit || submitting || deadlineExceeded) return;
+
     setSubmitting(true);
     setSubmitError(null);
     // Prevent a stale autosave from racing the final submit.
     saveGenerationRef.current += 1;
     submittedRef.current = true;
+    hasUnsavedChangesRef.current = false;
+    allowNavigationRef.current = true;
     try {
       await submitReport(detail.requestId, {
         form,
@@ -858,12 +1018,15 @@ export function ExpertEvaluationRequestView({
         reportId: draftReportIdRef.current,
       });
       clearEvaluationDraft(detail.requestId);
+      setSubmitConfirmOpen(false);
       await onSubmitted?.();
     } catch (err) {
       submittedRef.current = false;
+      allowNavigationRef.current = false;
       setSubmitError(
         err instanceof Error ? err.message : "Unable to submit report.",
       );
+      setSubmitConfirmOpen(false);
     } finally {
       setSubmitting(false);
     }
@@ -955,11 +1118,7 @@ export function ExpertEvaluationRequestView({
               accepting={accepting}
               acceptDisabled={false}
               acceptError={acceptError}
-              reassigning={reassigning}
-              reassignDisabled={reassignDisabled}
-              reassignError={reassignError}
               onAccept={onAccept}
-              onReassign={onReassign}
             />
           </div>
         </div>
@@ -1166,8 +1325,27 @@ export function ExpertEvaluationRequestView({
           } catch {
             /* ignore */
           }
+          allowNavigationRef.current = true;
+          hasUnsavedChangesRef.current = false;
           router.push("/expert/drafts");
         }}
+      />
+
+      <ExpertLeaveWithoutSavingModal
+        open={leaveModalOpen}
+        saving={leaveSaving}
+        onStay={stayOnPage}
+        onLeave={proceedWithLeave}
+        onSaveAsDraft={saveDraftAndLeave}
+      />
+
+      <ExpertSubmitConfirmationModal
+        open={submitConfirmOpen}
+        submitting={submitting}
+        onCancel={() => {
+          if (!submitting) setSubmitConfirmOpen(false);
+        }}
+        onConfirm={confirmSubmitReport}
       />
 
       {showAcceptedToast ? <AcceptedToast onDismiss={onDismissToast} /> : null}

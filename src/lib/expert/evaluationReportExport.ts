@@ -329,7 +329,7 @@ export function buildEvaluationReportPrintHtml(
 }
 
 const PDF_COLORS = {
-  primary: [123, 63, 64] as [number, number, number],
+  primary: [124, 60, 63] as [number, number, number],
   text: [17, 17, 17] as [number, number, number],
   textMuted: [107, 114, 128] as [number, number, number],
   border: [229, 226, 220] as [number, number, number],
