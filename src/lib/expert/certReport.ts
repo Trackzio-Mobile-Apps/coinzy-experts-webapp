@@ -1,4 +1,3 @@
-import { formatEstimatedPriceRange } from "@/lib/expert/evaluationForm";
 import { normalizeMongoId } from "@/lib/expert/format";
 import { contentFieldsToFormState } from "@/lib/expert/reportContentFields";
 import type { BackendReport } from "@/lib/expert/types";
@@ -45,10 +44,7 @@ export function mapReportToCertView(report: BackendReport): CertReport {
     holderType: asString(form.material),
     population: asString(form.errorsOrSpecialFeatures),
     popHigher: asString(form.rarity),
-    priceGuideValue: formatEstimatedPriceRange(
-      asString(form.estimatedPriceMin, ""),
-      asString(form.estimatedPriceMax, ""),
-    ) || "—",
+    priceGuideValue: asString(form.estimatedPriceRange) || "—",
   };
 }
 

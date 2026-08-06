@@ -1,5 +1,7 @@
 "use client";
 
+import { panelListPageClass, panelRequestDetailShellClass } from "./layout/panelLayout";
+
 import { ExpertNavIcon } from "@/components/expert/ExpertNavIcons";
 import { ExpertLogoutConfirmModal } from "@/components/expert/ExpertLogoutConfirmModal";
 import { ExpertAvatar } from "@/components/expert/ExpertAvatar";
@@ -354,8 +356,8 @@ export function ExpertPanelShell({
 
   if (isRequestDetail) {
     return (
-      <main className="flex h-dvh flex-col overflow-hidden bg-expert-dashboard-canvas px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
-        <div className="mx-auto flex min-h-0 w-full max-w-[96rem] flex-1 flex-col">
+      <main className="flex h-dvh flex-col overflow-hidden bg-expert-dashboard-canvas px-4 py-4 sm:px-6 lg:px-8 lg:py-5 xl:px-10 2xl:px-12">
+        <div className={panelRequestDetailShellClass}>
           {children}
         </div>
       </main>
@@ -455,8 +457,8 @@ export function ExpertPanelShell({
         ) : null}
 
         <div className="min-h-0 min-w-0 flex-1 lg:min-h-screen">
-          <div className="w-full px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8 xl:px-10">
-            {children}
+          <div className="w-full px-4 pb-10 pt-6 sm:px-6 lg:px-8 lg:pt-8 xl:px-10 2xl:px-12">
+            <div className={panelListPageClass}>{children}</div>
           </div>
         </div>
       </div>

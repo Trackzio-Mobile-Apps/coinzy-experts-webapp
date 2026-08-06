@@ -16,7 +16,10 @@
   --coinzy-text: #111111;
   --coinzy-text-muted: #6b7280;
   --coinzy-border: #e5e2dc;
-  --coinzy-input-bg: #f0eeea;
+  /** Figma Coin/Field/Background — inputs, selects, textareas */
+  --coinzy-input-bg: #f9fafb;
+  /** Figma Coin/Field/Surface — field border stroke */
+  --coinzy-input-border: #e6e9eb;
   --coinzy-logo-bg: #1c1917;
   --coinzy-logo-accent: #4ade80;
   --coinzy-success-ring: #e8f5e9;
@@ -35,7 +38,7 @@
   /* ── Expert actions: green (In Progress / Continue) ───────────── */
   --coinzy-expert-action-green: #16a34a;
   --coinzy-expert-action-green-hover: #15803d;
-  --coinzy-expert-action-green-soft: #ecfdf5;
+  --coinzy-expert-action-green-soft: #e8f8ef;
   --coinzy-expert-action-green-text: #166534;
   --coinzy-expert-action-green-ring: rgba(22, 163, 74, 0.22);
 
@@ -46,17 +49,21 @@
   --coinzy-expert-action-blue-text: #1d4ed8;
   --coinzy-expert-action-blue-ring: rgba(59, 130, 246, 0.25);
 
-  /* ── Expert actions: amber (Draft) ────────────────────────────── */
+  /* ── Expert actions: amber (Time Extended / Draft) ─────────────── */
   --coinzy-expert-action-amber: #eab308;
   --coinzy-expert-action-amber-hover: #ca8a04;
-  --coinzy-expert-action-amber-soft: #fef9c3;
-  --coinzy-expert-action-amber-text: #854d0e;
+  --coinzy-expert-action-amber-soft: #fef3c7;
+  --coinzy-expert-action-amber-text: #92400e;
   --coinzy-expert-action-amber-ring: rgba(234, 179, 8, 0.45);
 
-  /* ── Expert neutral badge (Pending / New offer) ───────────────── */
-  --coinzy-expert-badge-neutral: #f5f5f4;
-  --coinzy-expert-badge-neutral-text: #44403c;
-  --coinzy-expert-badge-neutral-ring: rgba(168, 162, 158, 0.7);
+  /* ── Expert actions: orange (Time Extended) ───────────────────── */
+  --coinzy-expert-action-orange: #c2620e;
+  --coinzy-expert-action-orange-hover: #a4520b;
+
+  /* ── Expert neutral badge (Pending Review) — Coin/Neutral/100 ─── */
+  --coinzy-expert-badge-neutral: #dfdfe0;
+  --coinzy-expert-badge-neutral-text: #3f3f46;
+  --coinzy-expert-badge-neutral-ring: rgba(168, 162, 158, 0.35);
 
   /* ── Expert history status pills ──────────────────────────────── */
   --coinzy-expert-status-draft-bg: #f3f4f6;

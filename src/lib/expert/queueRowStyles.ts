@@ -11,33 +11,30 @@ export const QUEUE_VARIANT_STYLES: Record<
 > = {
   pending_review: {
     accent: "border-l-expert-action-blue",
-    badge:
-      "bg-expert-badge-neutral text-expert-badge-neutral-text ring-expert-badge-neutral-ring",
+    badge: "bg-expert-badge-neutral text-expert-badge-neutral-text",
     badgeLabel: "Pending Review",
     primaryButton:
       "bg-expert-action-blue hover:bg-expert-action-blue-hover",
   },
   in_progress: {
     accent: "border-l-expert-action-green",
-    badge:
-      "bg-expert-action-green-soft text-expert-action-green-text ring-expert-action-green-ring",
+    badge: "bg-expert-action-green-soft text-expert-action-green-text",
     badgeLabel: "In Progress",
     primaryButton:
       "bg-expert-action-green hover:bg-expert-action-green-hover",
   },
   time_extended: {
-    accent: "border-l-expert-action-amber",
-    badge:
-      "bg-expert-action-amber-soft text-expert-action-amber-text ring-expert-action-amber-ring",
+    accent: "border-l-expert-action-orange",
+    badge: "bg-expert-action-amber-soft text-expert-action-amber-text",
     badgeLabel: "Time Extended",
-    primaryButton: "bg-primary hover:bg-primary-hover",
+    primaryButton:
+      "bg-expert-action-orange hover:bg-expert-action-orange-hover",
   },
 };
 
 export const QUEUE_EXPIRED_ROW_STYLES = {
   accent: "border-l-expert-status-expired-text",
-  badge:
-    "bg-expert-status-expired-bg text-expert-status-expired-text ring-expert-status-expired-text/30",
+  badge: "bg-expert-status-expired-bg text-expert-status-expired-text",
   badgeLabel: "Overdue",
   primaryButton: "bg-neutral-500 hover:bg-neutral-600",
   deadlineClass: "text-expert-status-expired-text",
@@ -70,7 +67,7 @@ export function getQueueRowStyles(row: QueueRowStyleInput): QueueRowStyle {
 }
 
 export const queuePrimaryButtonClass =
-  "inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors";
+  "inline-flex h-10 min-w-[8.5rem] items-center justify-center rounded-lg px-4 text-center text-sm font-semibold text-white shadow-sm transition-colors";
 
 export const draftContinueButtonClass =
   "inline-flex min-w-[7.5rem] items-center justify-center rounded-lg px-5 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-colors";

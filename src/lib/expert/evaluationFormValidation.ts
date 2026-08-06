@@ -9,7 +9,6 @@ const MAX_LONG_TEXT = 5000;
 const MAX_YEAR_TEXT = 50;
 
 const POSITIVE_DECIMAL = /^\d+(\.\d{1,3})?$/;
-const POSITIVE_MONEY = /^\d+(\.\d{1,2})?$/;
 
 function getFieldDef(key: string): EvaluationFormFieldDef | null {
   for (const section of EVALUATION_FORM_SECTIONS) {
@@ -136,11 +135,14 @@ function validateFieldValue(
       return null;
     case "obverseDescription":
     case "reverseDescription":
-    case "recommendation":
       if (trimmed.length < 10) return minLengthMessage(label, 10);
       if (trimmed.length > MAX_LONG_TEXT) {
         return maxLengthMessage(label, MAX_LONG_TEXT);
       }
+      return null;
+    case "recommendation":
+      if (trimmed.length < 2) return minLengthMessage(label, 2);
+      if (trimmed.length > MAX_TEXT) return maxLengthMessage(label, MAX_TEXT);
       return null;
     case "history":
     case "errorsOrSpecialFeatures":
@@ -149,32 +151,10 @@ function validateFieldValue(
         return maxLengthMessage(label, MAX_LONG_TEXT);
       }
       return null;
-    case "estimatedPriceMin": {
-      const minError = validatePositiveNumber(trimmed, label, {
-        pattern: POSITIVE_MONEY,
-        decimalsLabel: "up to 2 decimal places",
-        max: 1_000_000_000,
-      });
-      return minError;
-    }
-    case "estimatedPriceMax": {
-      const maxError = validatePositiveNumber(trimmed, label, {
-        pattern: POSITIVE_MONEY,
-        decimalsLabel: "up to 2 decimal places",
-        max: 1_000_000_000,
-      });
-      if (maxError) return maxError;
-
-      const minRaw = (form.estimatedPriceMin ?? "").trim();
-      if (minRaw && POSITIVE_MONEY.test(minRaw)) {
-        const min = Number(minRaw);
-        const max = Number(trimmed);
-        if (max < min) {
-          return "Maximum price must be greater than or equal to minimum price.";
-        }
-      }
+    case "estimatedPriceRange":
+      if (trimmed.length < 3) return minLengthMessage(label, 3);
+      if (trimmed.length > MAX_TEXT) return maxLengthMessage(label, MAX_TEXT);
       return null;
-    }
     case "authenticity":
       if (trimmed.length < 3) return minLengthMessage(label, 3);
       if (trimmed.length > MAX_TEXT) return maxLengthMessage(label, MAX_TEXT);

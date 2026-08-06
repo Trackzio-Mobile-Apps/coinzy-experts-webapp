@@ -7,19 +7,20 @@ type QueueCoinPreviewProps = {
   thumbnailUrls: string[];
 };
 
+/** Queue thumb: circular coin previews. */
+const thumbClass =
+  "h-[100px] w-[100px] shrink-0 rounded-full object-cover bg-input-bg";
+
 function CoinPairInitials({ label }: { label: string }) {
   return (
     <div
-      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-amber-200 via-amber-500 to-amber-900 text-[10px] font-bold text-white shadow-sm"
+      className="flex h-[100px] w-[100px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-200 via-amber-500 to-amber-900 text-sm font-bold text-white"
       aria-hidden
     >
       {label.slice(0, 2).toUpperCase()}
     </div>
   );
 }
-
-const thumbClass =
-  "h-14 w-14 shrink-0 rounded-full border-2 border-white object-cover shadow-sm";
 
 export function QueueCoinPreview({
   coinName,
@@ -68,7 +69,7 @@ export function QueueCoinPreview({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2" aria-hidden>
+    <div className="flex shrink-0 items-center gap-3" aria-hidden>
       {visibleUrls.map((src) => {
         const sourceIndex = urls.indexOf(src);
         return (

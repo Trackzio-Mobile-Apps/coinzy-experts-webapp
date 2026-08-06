@@ -1,3 +1,4 @@
+import { queueRowGridClass } from "@/components/expert/layout/panelLayout";
 import type { QueueListItem } from "@/lib/expert/types";
 import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
 import {
@@ -24,9 +25,12 @@ type ExpertQueuePageBodyProps = {
 };
 
 const reassignButtonClass =
-  "inline-flex items-center justify-center rounded-lg border border-primary px-5 py-2.5 text-center text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-10 min-w-[6.5rem] items-center justify-center rounded-lg border border-border bg-surface px-5 text-center text-sm font-semibold text-text transition-colors hover:bg-input-bg disabled:cursor-not-allowed disabled:opacity-50";
 
-const actionRowClass = "flex flex-wrap items-center justify-end gap-2";
+const actionRowClass = "flex flex-wrap items-center justify-end gap-3";
+
+const queueStatusBadgeClass =
+  "inline-flex h-7 w-fit shrink-0 items-center rounded-md px-3 text-sm font-medium";
 
 function ClockIcon({ className }: { className?: string }) {
   return (
@@ -94,34 +98,33 @@ export function ExpertQueuePageBody({
                 return (
                   <li key={row.id}>
                     <article
-                      className={`flex flex-col gap-4 rounded-xl border border-border/80 bg-surface p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-6 border-l-4 pl-3 sm:pl-4 ${styles.accent}`}
+                      className={`overflow-hidden rounded-xl border border-border/80 bg-surface py-4 pr-4 shadow-sm sm:pr-5 border-l-[6px] pl-4 sm:pl-5 ${styles.accent}`}
                     >
-                      <div className="flex min-w-0 flex-1 gap-4">
+                      <div className={queueRowGridClass}>
                         <QueueCoinPreview
                           coinName={row.coinName}
                           thumbnailUrls={row.thumbnailUrls}
                         />
-                        <div className="min-w-0 flex-1">
-                          <p className="flex items-center gap-1.5 text-sm text-text-muted">
+
+                        <div className="flex min-w-0 flex-col">
+                          <p className="flex min-w-0 items-center gap-0.5 text-sm text-text-muted">
                             <ClockIcon className="shrink-0 text-text-muted/80" />
                             {row.submittedDisplay}
                           </p>
-                          <p className="mt-1.5 text-base font-bold tracking-tight text-text">
+
+                          <p className="mt-2 text-base font-bold tracking-tight text-text">
                             {formatQueueRequestIdLabel(row.displayId)}
                           </p>
-                          <div className="mt-2">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${styles.badge}`}
-                            >
-                              {styles.badgeLabel}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
-                        <div className="text-right">
-                          <p className="flex items-center justify-end gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                          <span
+                            className={`mt-3 w-fit ${queueStatusBadgeClass} ${styles.badge}`}
+                          >
+                            {styles.badgeLabel}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-start sm:col-span-2 lg:col-span-1 lg:items-end">
+                          <p className="flex items-center gap-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted lg:justify-end">
                             <ClockIcon className="shrink-0 text-text-muted/80" />
                             Deadline
                           </p>
@@ -133,44 +136,47 @@ export function ExpertQueuePageBody({
                               row.deadlineDays,
                             )}
                           </p>
-                        </div>
 
-                        {row.variant === "pending_review" ? (
-                          <div className={actionRowClass}>
-                            <button
-                              type="button"
-                              disabled={
-                                !row.offerId ||
-                                !onSkipOffer ||
-                                skippingOfferId === row.offerId
-                              }
-                              title="Decline this offer and return it to the pool"
-                              onClick={() =>
-                                void onSkipOffer?.(row.offerId ?? "", row.id)
-                              }
-                              className={reassignButtonClass}
-                            >
-                              {skippingOfferId === row.offerId
-                                ? "Reassigning…"
-                                : "Reassign"}
-                            </button>
-                            <Link
-                              href={`/expert/queue/${row.id}?offerId=${encodeURIComponent(row.offerId ?? "")}`}
-                              className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
-                            >
-                              View Request
-                            </Link>
-                          </div>
-                        ) : (
-                          <div className={actionRowClass}>
-                            <Link
-                              href={`/expert/queue/${row.id}`}
-                              className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
-                            >
-                              Continue
-                            </Link>
-                          </div>
-                        )}
+                          {row.variant === "pending_review" ? (
+                            <div className={`mt-3 ${actionRowClass}`}>
+                              <button
+                                type="button"
+                                disabled={
+                                  !row.offerId ||
+                                  !onSkipOffer ||
+                                  skippingOfferId === row.offerId
+                                }
+                                title="Decline this offer and return it to the pool"
+                                onClick={() =>
+                                  void onSkipOffer?.(
+                                    row.offerId ?? "",
+                                    row.id,
+                                  )
+                                }
+                                className={reassignButtonClass}
+                              >
+                                {skippingOfferId === row.offerId
+                                  ? "Skipping…"
+                                  : "Skip"}
+                              </button>
+                              <Link
+                                href={`/expert/queue/${row.id}?offerId=${encodeURIComponent(row.offerId ?? "")}`}
+                                className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
+                              >
+                                View Request
+                              </Link>
+                            </div>
+                          ) : (
+                            <div className={`mt-3 ${actionRowClass}`}>
+                              <Link
+                                href={`/expert/queue/${row.id}`}
+                                className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
+                              >
+                                Continue
+                              </Link>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </article>
                   </li>

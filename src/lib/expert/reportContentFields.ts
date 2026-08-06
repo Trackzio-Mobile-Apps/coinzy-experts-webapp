@@ -1,6 +1,10 @@
 import { asDisplayString } from "@/lib/expert/format";
 import {
-  formatEstimatedPriceRange,
+  DEFAULT_PRICE_CURRENCY,
+  DEFAULT_WEIGHT_UNIT,
+  formatWeightValue,
+  mintingMethodToApi,
+  parseWeightValue,
   splitEstimatedPriceRange,
 } from "@/lib/expert/evaluationForm";
 import type {
@@ -36,9 +40,12 @@ export function formToContentFields(
     },
     physicalSpecs: {
       material: str(form.material),
-      weight: str(form.weight),
+      weight: formatWeightValue(
+        str(form.weight),
+        str(form.weightUnit) || DEFAULT_WEIGHT_UNIT,
+      ),
       dominantColor: str(form.dominantColor),
-      mintingMethod: str(form.mintingMethod),
+      mintingMethod: mintingMethodToApi(str(form.mintingMethod)),
     },
     designDetails: {
       obverseDescription: str(form.obverseDescription),
@@ -47,10 +54,8 @@ export function formToContentFields(
     },
     valueAndRarity: {
       rarity: str(form.rarity),
-      estimatedPriceRange: formatEstimatedPriceRange(
-        str(form.estimatedPriceMin),
-        str(form.estimatedPriceMax),
-      ),
+      currency: str(form.priceCurrency) || DEFAULT_PRICE_CURRENCY,
+      estimatedPriceRange: str(form.estimatedPriceRange),
     },
     expertAssessment: {
       authenticity: str(form.authenticity),
@@ -103,11 +108,14 @@ export function contentFieldsToFormState(
     "estimatedPriceRange",
     "estimatedPriceRange",
   );
+  const nestedCurrency = pick(value, "currency", "currency");
   const legacyRange =
-    min && max ? formatEstimatedPriceRange(min, max) : min || max || nestedRange;
-  const { min: rangeMin, max: rangeMax } = splitEstimatedPriceRange(
-    nestedRange || legacyRange,
-  );
+    nestedRange ||
+    (min && max ? `${min} – ${max}` : min || max || "");
+  const { currency: rangeCurrency } = splitEstimatedPriceRange(legacyRange);
+
+  const storedWeight = pick(physical, "weight", "weightG", "weight");
+  const weight = parseWeightValue(storedWeight);
 
   return {
     coinName: pick(general, "coinName", "nameDesignation", "coinName"),
@@ -122,7 +130,8 @@ export function contentFieldsToFormState(
     yearOfMinting: pick(general, "yearOfMinting", "yearOfMinting"),
     mintLocation: pick(general, "mintLocation", "mintStation", "mintLocation"),
     material: pick(physical, "material", "material"),
-    weight: pick(physical, "weight", "weightG", "weight"),
+    weight: weight.value,
+    weightUnit: weight.unit || DEFAULT_WEIGHT_UNIT,
     dominantColor: pick(physical, "dominantColor", "dominantColor"),
     mintingMethod: pick(physical, "mintingMethod", "mintingMethod"),
     obverseDescription: pick(
@@ -137,8 +146,11 @@ export function contentFieldsToFormState(
     ),
     history: pick(design, "history", "historicalSignificance", "history"),
     rarity: pick(value, "rarity", "rarity"),
-    estimatedPriceMin: min || rangeMin,
-    estimatedPriceMax: max || rangeMax,
+    estimatedPriceRange: legacyRange,
+    priceCurrency:
+      nestedCurrency ||
+      rangeCurrency ||
+      DEFAULT_PRICE_CURRENCY,
     authenticity: pick(assessment, "authenticity", "authenticity"),
     conditionOrGrade: pick(
       assessment,
@@ -185,6 +197,7 @@ export function emptyContentFields(): ReportContentFields {
     },
     valueAndRarity: {
       rarity: "",
+      currency: "",
       estimatedPriceRange: "",
     },
     expertAssessment: {
