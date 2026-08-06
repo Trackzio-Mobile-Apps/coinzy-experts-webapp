@@ -1,3 +1,4 @@
+import { isDeadlineExceeded } from "@/lib/expert/format";
 import type { QueueItemStatus, QueueRowVariant } from "@/lib/expert/types";
 
 export const QUEUE_VARIANT_STYLES: Record<
@@ -48,14 +49,25 @@ export type QueueRowStyleInput = {
   variant: QueueRowVariant;
   deadlineExpired: boolean;
   status?: QueueItemStatus;
+  deadlineAt?: string | null;
+  nowMs?: number;
 };
 
+export function resolveQueueDeadlineExpired(
+  row: QueueRowStyleInput,
+): boolean {
+  return (
+    row.deadlineExpired ||
+    isDeadlineExceeded(row.deadlineAt, row.nowMs ?? Date.now())
+  );
+}
+
 export function getQueueRowStyles(row: QueueRowStyleInput): QueueRowStyle {
-  if (row.deadlineExpired) {
+  if (resolveQueueDeadlineExpired(row)) {
     return {
       ...QUEUE_EXPIRED_ROW_STYLES,
       badgeLabel:
-        row.status === "pending_review" ? "Offer expired" : "Overdue",
+        row.status === "pending_review" ? "Expired" : "Overdue",
     };
   }
 

@@ -2,11 +2,14 @@ import type { DraftListItem } from "@/lib/expert/types";
 import {
   formatQueueDeadlineLabel,
   formatQueueRequestIdLabel,
+  resolveDeadlineExpired,
 } from "@/lib/expert/format";
 import {
   DRAFT_ROW_STYLES,
   draftContinueButtonClass,
+  QUEUE_EXPIRED_ROW_STYLES,
 } from "@/lib/expert/queueRowStyles";
+import { useDeadlineClock } from "@/lib/expert/useDeadlineClock";
 import { ExpertEmptyState } from "@/components/expert/ExpertEmptyState";
 import { ExpertScrollIllustration } from "@/components/expert/ExpertScrollIllustration";
 import { ExpertDraftsListSkeleton } from "@/components/expert/ExpertSkeleton";
@@ -61,6 +64,7 @@ export function ExpertDraftsPageBody({
   items,
   isLoading = false,
 }: ExpertDraftsPageBodyProps) {
+  const nowMs = useDeadlineClock();
   const showEmpty = !isLoading && items.length === 0;
   const count = items.length;
 
@@ -105,7 +109,7 @@ export function ExpertDraftsPageBody({
 
             <ul className="space-y-5">
               {items.map((row) => (
-                <DraftRow key={row.id} row={row} />
+                <DraftRow key={row.id} row={row} nowMs={nowMs} />
               ))}
             </ul>
           </>
@@ -115,15 +119,26 @@ export function ExpertDraftsPageBody({
   );
 }
 
-function DraftRow({ row }: { row: DraftListItem }) {
-  const continueClass = row.deadlineExpired
+function DraftRow({ row, nowMs }: { row: DraftListItem; nowMs: number }) {
+  const deadlineExpired = resolveDeadlineExpired(
+    row.deadlineAt,
+    row.deadlineExpired,
+    nowMs,
+  );
+  const continueClass = deadlineExpired
     ? DRAFT_ROW_STYLES.continueButtonExpired
     : DRAFT_ROW_STYLES.continueButton;
+  const badgeClass = deadlineExpired
+    ? QUEUE_EXPIRED_ROW_STYLES.badge
+    : DRAFT_ROW_STYLES.badge;
+  const accentClass = deadlineExpired
+    ? QUEUE_EXPIRED_ROW_STYLES.accent
+    : DRAFT_ROW_STYLES.accent;
 
   return (
     <li>
       <article
-        className={`rounded-xl border border-border bg-surface p-5 shadow-sm sm:p-6 border-l-4 sm:pl-5 ${DRAFT_ROW_STYLES.accent}`}
+        className={`rounded-xl border border-border bg-surface p-5 shadow-sm sm:p-6 border-l-4 sm:pl-5 ${accentClass}`}
       >
         <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:grid-rows-[auto_auto_auto] sm:gap-y-4">
           <p className="flex items-center gap-1.5 text-sm text-text-muted sm:row-start-1">
@@ -133,9 +148,9 @@ function DraftRow({ row }: { row: DraftListItem }) {
 
           <div className="grid grid-cols-[auto_auto] items-start gap-x-4 gap-y-1 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end sm:gap-x-5">
             <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${DRAFT_ROW_STYLES.badge}`}
+              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${badgeClass}`}
             >
-              Draft
+              {deadlineExpired ? "Overdue" : "Draft"}
             </span>
             <div className="text-right">
               <p className="flex items-center justify-end gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
@@ -144,8 +159,18 @@ function DraftRow({ row }: { row: DraftListItem }) {
               </p>
             </div>
             <div aria-hidden className="hidden sm:block" />
-            <p className="text-right text-lg font-bold tabular-nums text-text">
-              {formatQueueDeadlineLabel(row.deadlineAt, row.deadlineDays)}
+            <p
+              className={`text-right text-lg font-bold tabular-nums ${
+                deadlineExpired
+                  ? QUEUE_EXPIRED_ROW_STYLES.deadlineClass
+                  : "text-text"
+              }`}
+            >
+              {formatQueueDeadlineLabel(
+                row.deadlineAt,
+                row.deadlineDays,
+                nowMs,
+              )}
             </p>
           </div>
 
@@ -169,7 +194,7 @@ function DraftRow({ row }: { row: DraftListItem }) {
           </div>
 
           <div className="flex justify-start sm:col-start-2 sm:row-start-3 sm:items-end sm:justify-end">
-            {row.deadlineExpired ? (
+            {deadlineExpired ? (
               <span
                 className={`${draftContinueButtonClass} cursor-not-allowed ${continueClass}`}
                 aria-disabled

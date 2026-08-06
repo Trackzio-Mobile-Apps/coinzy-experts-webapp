@@ -4,11 +4,13 @@ import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
 import {
   formatQueueDeadlineLabel,
   formatQueueRequestIdLabel,
+  resolveDeadlineExpired,
 } from "@/lib/expert/format";
 import {
   getQueueRowStyles,
   queuePrimaryButtonClass,
 } from "@/lib/expert/queueRowStyles";
+import { useDeadlineClock } from "@/lib/expert/useDeadlineClock";
 import { ExpertEmptyState } from "@/components/expert/ExpertEmptyState";
 import { ExpertScrollIllustration } from "@/components/expert/ExpertScrollIllustration";
 import { ExpertQueueListSkeleton } from "@/components/expert/ExpertSkeleton";
@@ -60,6 +62,7 @@ export function ExpertQueuePageBody({
   skippingOfferId = null,
   onSkipOffer,
 }: ExpertQueuePageBodyProps) {
+  const nowMs = useDeadlineClock();
   const showEmpty = !isLoading && totalItems === 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / QUEUE_PAGE_SIZE));
   const from = totalItems === 0 ? 0 : (page - 1) * QUEUE_PAGE_SIZE + 1;
@@ -93,7 +96,12 @@ export function ExpertQueuePageBody({
           <>
             <ul className="space-y-4">
               {items.map((row) => {
-                const styles = getQueueRowStyles(row);
+                const deadlineExpired = resolveDeadlineExpired(
+                  row.deadlineAt,
+                  row.deadlineExpired,
+                  nowMs,
+                );
+                const styles = getQueueRowStyles({ ...row, deadlineExpired, nowMs });
 
                 return (
                   <li key={row.id}>
@@ -134,6 +142,7 @@ export function ExpertQueuePageBody({
                             {formatQueueDeadlineLabel(
                               row.deadlineAt,
                               row.deadlineDays,
+                              nowMs,
                             )}
                           </p>
 

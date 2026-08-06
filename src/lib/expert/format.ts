@@ -153,10 +153,19 @@ export function formatDeadlineRemaining(isoDate: unknown): string {
 }
 
 /** True when `deadlineAt` is in the past (submission no longer allowed). */
-export function isDeadlineExceeded(isoDate: unknown): boolean {
+export function isDeadlineExceeded(isoDate: unknown, nowMs = Date.now()): boolean {
   const target = parseDate(isoDate);
   if (!target) return false;
-  return target.getTime() <= Date.now();
+  return target.getTime() <= nowMs;
+}
+
+/** Combines cached mapper flag with a live deadline check. */
+export function resolveDeadlineExpired(
+  deadlineAt: string | null | undefined,
+  cached = false,
+  nowMs = Date.now(),
+): boolean {
+  return cached || isDeadlineExceeded(deadlineAt, nowMs);
 }
 
 export function formatSubmitted(isoDate: unknown): string {
@@ -286,8 +295,9 @@ export function formatQueueDeadlineDays(deadlineDays: number): string {
 export function formatQueueDeadlineLabel(
   deadlineAt: string | null | undefined,
   deadlineDays: number,
+  nowMs = Date.now(),
 ): string {
-  if (isDeadlineExceeded(deadlineAt)) return "Overdue";
+  if (isDeadlineExceeded(deadlineAt, nowMs)) return "Overdue";
   return formatQueueDeadlineDays(deadlineDays);
 }
 

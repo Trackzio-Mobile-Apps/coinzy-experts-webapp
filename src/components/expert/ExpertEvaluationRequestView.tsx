@@ -185,9 +185,17 @@ function DeadlineBadge({
   deadlineAt: string | null;
 }) {
   const remaining = formatDeadlineRemaining(deadlineAt);
+  const overdue =
+    remaining === "Overdue" || isDeadlineExceeded(deadlineAt);
 
   return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-input-bg/40 px-3.5 py-2.5">
+    <div
+      className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 ${
+        overdue
+          ? "border-expert-status-expired-text/25 bg-expert-status-expired-bg/50"
+          : "border-border/70 bg-input-bg/40"
+      }`}
+    >
       <span
         className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
         aria-hidden
@@ -210,10 +218,16 @@ function DeadlineBadge({
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
           Deadline
         </p>
-        <p className="mt-0.5 text-base font-semibold tabular-nums text-text">
-          {remaining === "—"
-            ? `${days} ${days === 1 ? "day" : "days"}`
-            : remaining}
+        <p
+          className={`mt-0.5 text-base font-semibold tabular-nums ${
+            overdue ? "text-expert-status-expired-text" : "text-text"
+          }`}
+        >
+          {overdue
+            ? "Overdue"
+            : remaining === "—"
+              ? `${days} ${days === 1 ? "day" : "days"}`
+              : remaining}
         </p>
         <p className="mt-0.5 text-xs text-text-muted">
           {formatDeadlineDue(deadlineAt)}
