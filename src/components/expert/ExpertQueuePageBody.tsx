@@ -1,3 +1,4 @@
+import { queueRowGridClass } from "@/components/expert/layout/panelLayout";
 import type { QueueListItem } from "@/lib/expert/types";
 import { QUEUE_PAGE_SIZE } from "@/lib/expert/constants";
 import {
@@ -97,86 +98,84 @@ export function ExpertQueuePageBody({
                 return (
                   <li key={row.id}>
                     <article
-                      className={`flex flex-col gap-4 overflow-hidden rounded-xl border border-border/80 bg-surface py-4 pr-4 shadow-sm sm:flex-row sm:items-stretch sm:gap-6 border-l-[6px] pl-4 sm:pl-5 ${styles.accent}`}
+                      className={`overflow-hidden rounded-xl border border-border/80 bg-surface py-4 pr-4 shadow-sm sm:pr-5 border-l-[6px] pl-4 sm:pl-5 ${styles.accent}`}
                     >
-                      <div className="flex min-w-0 flex-1 items-center gap-5">
+                      <div className={queueRowGridClass}>
                         <QueueCoinPreview
                           coinName={row.coinName}
                           thumbnailUrls={row.thumbnailUrls}
                         />
-                        <div className="hidden self-stretch border-l border-border/60 sm:block" />
-                        <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3">
-                          <div className="flex min-w-0 flex-col">
-                            <p className="flex min-w-0 items-center gap-0.5 text-sm text-text-muted">
-                              <ClockIcon className="shrink-0 text-text-muted/80" />
-                              {row.submittedDisplay}
-                            </p>
 
-                            <p className="mt-2 text-base font-bold tracking-tight text-text">
-                              {formatQueueRequestIdLabel(row.displayId)}
-                            </p>
+                        <div className="flex min-w-0 flex-col">
+                          <p className="flex min-w-0 items-center gap-0.5 text-sm text-text-muted">
+                            <ClockIcon className="shrink-0 text-text-muted/80" />
+                            {row.submittedDisplay}
+                          </p>
 
-                            <span
-                              className={`mt-3 ${queueStatusBadgeClass} ${styles.badge}`}
-                            >
-                              {styles.badgeLabel}
-                            </span>
-                          </div>
+                          <p className="mt-2 text-base font-bold tracking-tight text-text">
+                            {formatQueueRequestIdLabel(row.displayId)}
+                          </p>
 
-                          <div className="flex shrink-0 flex-col items-end">
-                            <p className="flex items-center justify-end gap-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-                              <ClockIcon className="shrink-0 text-text-muted/80" />
-                              Deadline
-                            </p>
-                            <p
-                              className={`mt-0.5 text-lg font-bold tabular-nums ${styles.deadlineClass}`}
-                            >
-                              {formatQueueDeadlineLabel(
-                                row.deadlineAt,
-                                row.deadlineDays,
-                              )}
-                            </p>
+                          <span
+                            className={`mt-3 w-fit ${queueStatusBadgeClass} ${styles.badge}`}
+                          >
+                            {styles.badgeLabel}
+                          </span>
+                        </div>
 
-                            {row.variant === "pending_review" ? (
-                              <div className={`mt-3 ${actionRowClass}`}>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    !row.offerId ||
-                                    !onSkipOffer ||
-                                    skippingOfferId === row.offerId
-                                  }
-                                  title="Decline this offer and return it to the pool"
-                                  onClick={() =>
-                                    void onSkipOffer?.(
-                                      row.offerId ?? "",
-                                      row.id,
-                                    )
-                                  }
-                                  className={reassignButtonClass}
-                                >
-                                  {skippingOfferId === row.offerId
-                                    ? "Skipping…"
-                                    : "Skip"}
-                                </button>
-                                <Link
-                                  href={`/expert/queue/${row.id}?offerId=${encodeURIComponent(row.offerId ?? "")}`}
-                                  className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
-                                >
-                                  View Request
-                                </Link>
-                              </div>
-                            ) : (
-                              <div className={`mt-3 ${actionRowClass}`}>
-                                <Link
-                                  href={`/expert/queue/${row.id}`}
-                                  className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
-                                >
-                                  Continue
-                                </Link>
-                              </div>
+                        <div className="flex flex-col items-start sm:col-span-2 lg:col-span-1 lg:items-end">
+                          <p className="flex items-center gap-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted lg:justify-end">
+                            <ClockIcon className="shrink-0 text-text-muted/80" />
+                            Deadline
+                          </p>
+                          <p
+                            className={`mt-0.5 text-lg font-bold tabular-nums ${styles.deadlineClass}`}
+                          >
+                            {formatQueueDeadlineLabel(
+                              row.deadlineAt,
+                              row.deadlineDays,
                             )}
-                          </div>
+                          </p>
+
+                          {row.variant === "pending_review" ? (
+                            <div className={`mt-3 ${actionRowClass}`}>
+                              <button
+                                type="button"
+                                disabled={
+                                  !row.offerId ||
+                                  !onSkipOffer ||
+                                  skippingOfferId === row.offerId
+                                }
+                                title="Decline this offer and return it to the pool"
+                                onClick={() =>
+                                  void onSkipOffer?.(
+                                    row.offerId ?? "",
+                                    row.id,
+                                  )
+                                }
+                                className={reassignButtonClass}
+                              >
+                                {skippingOfferId === row.offerId
+                                  ? "Skipping…"
+                                  : "Skip"}
+                              </button>
+                              <Link
+                                href={`/expert/queue/${row.id}?offerId=${encodeURIComponent(row.offerId ?? "")}`}
+                                className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
+                              >
+                                View Request
+                              </Link>
+                            </div>
+                          ) : (
+                            <div className={`mt-3 ${actionRowClass}`}>
+                              <Link
+                                href={`/expert/queue/${row.id}`}
+                                className={`${queuePrimaryButtonClass} ${styles.primaryButton}`}
+                              >
+                                Continue
+                              </Link>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </article>

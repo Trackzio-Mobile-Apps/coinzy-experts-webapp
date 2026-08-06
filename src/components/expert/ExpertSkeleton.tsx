@@ -1,3 +1,5 @@
+import { evaluationRequestScrollGridClass } from "@/components/expert/layout/panelLayout";
+
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
@@ -209,7 +211,7 @@ export function ExpertRequestDetailSkeleton() {
         <SkeletonBone className="mt-3 h-6 w-72 max-w-full" />
         <SkeletonBone className="mt-2 h-4 w-52" />
       </div>
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)]">
+      <div className={`mt-6 ${evaluationRequestScrollGridClass}`}>
         <div className="space-y-4">
           <SkeletonBone className="h-3 w-40" />
           <div className="flex flex-wrap gap-2.5">

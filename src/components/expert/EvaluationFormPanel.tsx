@@ -290,7 +290,7 @@ export function EvaluationFormPanel({
               </span>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+            <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 xl:gap-x-5 xl:gap-y-5">
               {section.fields
                 .filter((field) => !pairedSecondaryKeys(section.fields).has(field.key))
                 .map((field) => {
