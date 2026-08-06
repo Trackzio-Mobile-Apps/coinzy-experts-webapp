@@ -36,7 +36,7 @@ export const QUEUE_VARIANT_STYLES: Record<
 export const QUEUE_EXPIRED_ROW_STYLES = {
   accent: "border-l-expert-status-expired-text",
   badge: "bg-expert-status-expired-bg text-expert-status-expired-text",
-  badgeLabel: "Overdue",
+  badgeLabel: "Expired",
   primaryButton: "bg-neutral-500 hover:bg-neutral-600",
   deadlineClass: "text-expert-status-expired-text",
 };
@@ -66,8 +66,7 @@ export function getQueueRowStyles(row: QueueRowStyleInput): QueueRowStyle {
   if (resolveQueueDeadlineExpired(row)) {
     return {
       ...QUEUE_EXPIRED_ROW_STYLES,
-      badgeLabel:
-        row.status === "pending_review" ? "Expired" : "Overdue",
+      badgeLabel: "Expired",
     };
   }
 

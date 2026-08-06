@@ -4,14 +4,22 @@ import { ExpertEvaluationReportContent } from "@/components/expert/ExpertEvaluat
 import { ExpertReportModalSkeleton } from "@/components/expert/ExpertSkeleton";
 import {
   buildEvaluationReportDisplay,
+  buildEvaluationReportExpertDisplay,
   type EvaluationReportDisplay,
 } from "@/lib/expert/evaluationReportView";
-import { downloadEvaluationReportPdf } from "@/lib/expert/evaluationReportExport";
+import {
+  downloadEvaluationReportPdf,
+} from "@/lib/expert/evaluationReportExport";
+import {
+  loadExtendedProfile,
+} from "@/lib/expert/expertProfileExtended";
+import { useExpertProfile } from "@/lib/expert/expertProfileStore";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
+import { getExpertReviews } from "@/lib/expert/reviewsService";
 import { buildExpertHistoryHref, normalizeMongoId, type HistoryPeriodFilter } from "@/lib/expert/format";
 import { resolveReport, extractReportIdFromRequest } from "@/lib/expert/reportsService";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type CertReportModalProps = {
   reportId: string | null;
@@ -27,11 +35,13 @@ export function CertReportModal({
   period,
 }: CertReportModalProps) {
   const router = useRouter();
+  const { profile } = useExpertProfile();
   const { requests } = useExpertPanelData();
   const [report, setReport] = useState<EvaluationReportDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => {
     router.replace(buildExpertHistoryHref({ page, period }));
@@ -80,9 +90,29 @@ export function CertReportModal({
             normalizeMongoId(item._id) ===
             normalizeMongoId(backendReport.requestId),
         );
+
+        let expertDisplay = buildEvaluationReportExpertDisplay(profile);
+        if (profile?.id) {
+          try {
+            const extended = loadExtendedProfile(profile.id);
+            const reviewsResult = await getExpertReviews();
+            expertDisplay = buildEvaluationReportExpertDisplay(profile, {
+              ratingAverage: reviewsResult.average,
+              ratingCount: reviewsResult.count,
+              expertiseTags:
+                extended.expertiseCategories.length > 0
+                  ? extended.expertiseCategories
+                  : undefined,
+            });
+          } catch {
+            // Keep profile-only expert card if reviews fail to load.
+          }
+        }
+
         setReport(
           buildEvaluationReportDisplay(backendReport, {
             requestPayload: request?.payload,
+            expert: expertDisplay,
           }),
         );
       } catch (err) {
@@ -100,7 +130,7 @@ export function CertReportModal({
     return () => {
       cancelled = true;
     };
-  }, [reportId, reportRequestId, requests]);
+  }, [profile, reportId, reportRequestId, requests]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -120,9 +150,16 @@ export function CertReportModal({
 
     setDownloadingPdf(true);
     try {
-      await downloadEvaluationReportPdf(report);
-    } catch {
-      window.alert("Unable to generate PDF. Please try again.");
+      await downloadEvaluationReportPdf(report, {
+        previewRoot: previewRef.current,
+      });
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      window.alert(
+        err instanceof Error
+          ? err.message
+          : "Unable to generate PDF. Please try again.",
+      );
     } finally {
       setDownloadingPdf(false);
     }
@@ -168,7 +205,10 @@ export function CertReportModal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto px-5 py-6 sm:px-8 sm:py-8">
+        <div
+          ref={previewRef}
+          className="flex min-h-0 flex-1 flex-col items-center overflow-auto px-5 py-6 sm:px-8 sm:py-8"
+        >
           {loading ? (
             <ExpertReportModalSkeleton />
           ) : error ? (

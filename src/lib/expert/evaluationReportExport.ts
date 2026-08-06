@@ -1,9 +1,26 @@
+import {
+  authenticityAssessmentTheme,
+  authenticityTone,
+  EVALUATION_REPORT_TOKENS,
+} from "@/lib/expert/evaluationReportTokens";
+import {
+  evaluationReportFontFaceCss,
+  evaluationReportFontLinkHtml,
+  evaluationReportLayoutCss,
+  EVALUATION_REPORT_INTER_FONT_URL,
+  REPORT_PAGE_HEIGHT_PX,
+  REPORT_PAGE_WIDTH_PX,
+} from "@/lib/expert/evaluationReportLayoutStyles";
 import type { EvaluationReportDisplay } from "@/lib/expert/evaluationReportView";
 import {
   EVALUATION_REPORT_BRAND,
   EVALUATION_REPORT_SUBTITLE,
-  formatReportSubmittedAt,
-  groupReportMedia,
+  EVALUATION_REPORT_TITLE,
+  formatReportHeaderDate,
+  formatReportRating,
+  formatReportRequestLabel,
+  reportGalleryMedia,
+  type EvaluationReportSection,
 } from "@/lib/expert/evaluationReportView";
 import type { RequestMediaItem } from "@/lib/expert/types";
 
@@ -15,222 +32,414 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function reportSectionsHtml(report: EvaluationReportDisplay): string {
-  return report.sections
-    .map((section) => {
-      const rows = section.fields
-        .map(
-          (field, index) => `
-        <tr class="${index % 2 === 0 ? "row-even" : "row-odd"}">
-          <th scope="row">${escapeHtml(field.label)}</th>
-          <td>${escapeHtml(field.value)}</td>
-        </tr>`,
-        )
-        .join("");
+const REPORT_LOGO_PATH = "/coinzy-logo.png";
+const REPORT_MEDIA_PROXY_PATH = "/api/expert/media";
+const t = EVALUATION_REPORT_TOKENS;
+const c = t.colors;
+const p = t.pdf;
+const REPORT_CAPTURE_SCALE = 2;
 
-      return `
-      <section class="report-section">
-        <h2>${escapeHtml(section.title)}</h2>
-        <div class="table-wrap">
-          <table>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </section>`;
-    })
-    .join("");
+function reportLayoutStyleBlock(): string {
+  return evaluationReportLayoutCss();
 }
 
-function reportMediaHtml(report: EvaluationReportDisplay): string {
-  if (report.media.length === 0) return "";
+async function ensureReportFontsLoaded(doc: Document = document): Promise<void> {
+  const linkId = "eval-report-inter-font";
+  if (!doc.getElementById(linkId)) {
+    const link = doc.createElement("link");
+    link.id = linkId;
+    link.rel = "stylesheet";
+    link.href = EVALUATION_REPORT_INTER_FONT_URL;
+    doc.head.appendChild(link);
+  }
 
-  const groups = groupReportMedia(report.media)
-    .map(([group, items]) => {
-      const tiles = items
-        .map((item) => {
-          if (item.kind === "image") {
-            return `<img src="${escapeHtml(item.src)}" alt="${escapeHtml(item.alt)}" class="media-tile" loading="lazy" />`;
-          }
-          if (item.poster) {
-            return `<div class="media-video"><img src="${escapeHtml(item.poster)}" alt="${escapeHtml(item.alt)}" class="media-tile" loading="lazy" /><span class="media-play">▶</span></div>`;
-          }
-          return `<div class="media-video media-video-fallback"><span>Video</span></div>`;
-        })
-        .join("");
+  if (doc.fonts?.load) {
+    await Promise.all([
+      doc.fonts.load('400 14px "Inter"'),
+      doc.fonts.load('600 14px "Inter"'),
+      doc.fonts.load('700 14px "Inter"'),
+    ]).catch(() => undefined);
+  }
+  if (doc.fonts?.ready) {
+    await doc.fonts.ready;
+  }
+  const timerWindow = doc.defaultView ?? window;
+  await new Promise<void>((resolve) => {
+    timerWindow.setTimeout(resolve, 120);
+  });
+}
 
-      return `
-      <div class="media-group">
-        <p class="media-group-label">${escapeHtml(group)} (${items.length})</p>
-        <div class="media-grid">${tiles}</div>
-      </div>`;
-    })
-    .join("");
+function reportMediaFetchUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith("/")) return trimmed;
+  if (trimmed.startsWith("data:")) return trimmed;
+  return `${REPORT_MEDIA_PROXY_PATH}?url=${encodeURIComponent(trimmed)}`;
+}
 
-  return `
-    <section class="media-section">
-      <h2>Coin images &amp; videos</h2>
-      ${groups}
-    </section>`;
+async function urlToDataUrl(url: string): Promise<string | null> {
+  const fetchUrl = reportMediaFetchUrl(url);
+  if (!fetchUrl) return null;
+
+  try {
+    const response = await fetch(fetchUrl);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(typeof reader.result === "string" ? reader.result : null);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function inlineReportMediaUrls(
+  report: EvaluationReportDisplay,
+): Promise<(url: string) => string> {
+  const cache = new Map<string, string>();
+  const urls = new Set<string>();
+
+  if (report.expert?.profilePicture) {
+    urls.add(report.expert.profilePicture);
+  }
+  for (const item of reportGalleryMedia(report.media)) {
+    urls.add(item.src);
+  }
+  for (const item of report.media) {
+    if (item.kind === "video" && item.poster?.trim()) {
+      urls.add(item.poster);
+    }
+  }
+
+  await Promise.all(
+    [...urls].map(async (url) => {
+      const dataUrl = await urlToDataUrl(url);
+      if (dataUrl) cache.set(url, dataUrl);
+    }),
+  );
+
+  return (url: string) => cache.get(url.trim()) ?? reportMediaFetchUrl(url);
 }
 
 function reportDocumentStyles(): string {
   return `
+    ${evaluationReportFontFaceCss()}
+    ${evaluationReportLayoutCss()}
     * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    html, body {
       margin: 0;
       padding: 0;
-      background: #ffffff;
-      color: #111111;
-      line-height: 1.5;
-    }
-    .report {
-      max-width: 768px;
-      margin: 0 auto;
-      padding: 0;
-      background: #ffffff;
-    }
-    .report-header {
-      border-bottom: 1px solid #e5e2dc;
-      padding-bottom: 24px;
-    }
-    .report-header-top {
+      background: ${c.canvas};
+      color: ${c.text};
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 12px;
     }
-    .report-logo {
-      display: block;
-      width: 48px;
-      height: 48px;
-      border-radius: 10px;
-      object-fit: cover;
-      background: #111111;
-    }
-    .brand-name {
-      font-size: 14px;
-      font-weight: 600;
-      color: #111111;
-      margin: 0;
-      line-height: 1.3;
-    }
-    .brand {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: #7b3f40;
-      margin: 2px 0 0;
-    }
-    .title {
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: -0.025em;
-      color: #111111;
-      margin: 20px 0 0;
-      line-height: 1.3;
-    }
-    .media-section { margin-top: 32px; }
-    .media-section h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0 0 12px;
-      color: #111111;
-    }
-    .media-group { margin-bottom: 16px; }
-    .media-group:last-child { margin-bottom: 0; }
-    .media-group-label {
-      font-size: 12px;
-      font-weight: 500;
-      color: #6b7280;
-      margin: 0 0 8px;
-    }
-    .media-grid {
+    .report-pages {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .media-tile {
-      width: 96px;
-      height: 96px;
-      border-radius: 8px;
-      border: 1px solid #e5e2dc;
-      object-fit: cover;
-      background: #f0eeea;
-    }
-    .media-video {
-      position: relative;
-      width: 96px;
-      height: 96px;
-    }
-    .media-video-fallback {
-      display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      border-radius: 8px;
-      border: 1px solid #e5e2dc;
-      background: #111111;
-      color: #ffffff;
-      font-size: 11px;
-      font-weight: 600;
+      gap: 0;
+      width: ${REPORT_PAGE_WIDTH_PX}px;
     }
-    .media-play {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.28);
-      color: #ffffff;
-      font-size: 12px;
-      border-radius: 8px;
-    }
-    .sections { margin-top: 32px; }
-    .report-section { margin-bottom: 32px; page-break-inside: avoid; }
-    .report-section:last-child { margin-bottom: 0; }
-    .report-section h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
-      color: #111111;
-    }
-    .table-wrap {
-      margin-top: 12px;
-      overflow: hidden;
-      border-radius: 12px;
-      border: 1px solid #e5e2dc;
-      background: #ffffff;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-      text-align: left;
-    }
-    th, td {
-      border-bottom: 1px solid #e5e2dc;
-      padding: 12px 16px;
-      vertical-align: top;
-    }
-    tr:last-child th, tr:last-child td { border-bottom: none; }
-    tr.row-even { background: #faf9f7; }
-    tr.row-odd { background: #ffffff; }
-    th {
-      width: 38%;
-      font-weight: 600;
-      color: #111111;
-    }
-    td {
-      color: #6b7280;
-      white-space: pre-wrap;
-      line-height: 1.625;
-    }
-    .footer {
-      margin-top: 32px;
-      font-size: 12px;
-      color: #6b7280;
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      .eval-report-page {
+        page-break-after: always;
+        break-after: page;
+      }
+      .eval-report-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
     }
   `;
+}
+
+function keyValueCardHtml(section: EvaluationReportSection): string {
+  const rows = section.fields
+    .map(
+      (field) => `
+      <div class="eval-report-kv-row">
+        <span class="eval-report-kv-label">${escapeHtml(field.label)}</span>
+        <span class="eval-report-kv-value">${escapeHtml(field.value)}</span>
+      </div>`,
+    )
+    .join("");
+  return `<div class="eval-report-kv-card">${rows}</div>`;
+}
+
+function sectionHeadingHtml(icon: string, title: string): string {
+  return `
+    <div class="eval-report-section-heading">
+      <span class="eval-report-section-icon">${icon}</span>
+      <h3 class="eval-report-section-title">${escapeHtml(title)}</h3>
+    </div>`;
+}
+
+function reportExpertHtml(
+  report: EvaluationReportDisplay,
+  resolveMediaUrl: (url: string) => string,
+): string {
+  const expert = report.expert;
+  if (!expert) {
+    return `<p class="eval-report-hero-tagline" style="margin-top:18px">Expert details unavailable.</p>`;
+  }
+
+  const avatar = expert.profilePicture
+    ? `<img src="${escapeHtml(resolveMediaUrl(expert.profilePicture))}" alt="${escapeHtml(expert.fullName)}" class="eval-report-hero-avatar" crossorigin="anonymous" />`
+    : `<div class="eval-report-hero-avatar">${escapeHtml(expert.initials)}</div>`;
+
+  const chips = expert.expertiseTags
+    .slice(0, 4)
+    .map((tag) => `<span class="eval-report-chip">${escapeHtml(tag)}</span>`)
+    .join("");
+
+  return `
+    <div class="eval-report-hero-profile">
+      ${avatar}
+      <div>
+        <h2 class="eval-report-hero-name">${escapeHtml(expert.fullName)}</h2>
+        <p class="eval-report-hero-tagline">${escapeHtml(expert.tagline)}</p>
+      </div>
+    </div>
+    <div class="eval-report-stat-box">
+      <div class="eval-report-stat-row">
+        <span class="eval-report-stat-label">Experience</span>
+        <span class="eval-report-stat-value">${escapeHtml(expert.experienceLabel)}</span>
+      </div>
+      <div class="eval-report-stat-row">
+        <span class="eval-report-stat-label">Evaluations</span>
+        <span class="eval-report-stat-value">${expert.evaluationsCount}</span>
+      </div>
+      <div class="eval-report-stat-row">
+        <span class="eval-report-stat-label">Rating</span>
+        <span class="eval-report-stat-value">${escapeHtml(formatReportRating(expert.ratingAverage, expert.ratingCount))}</span>
+      </div>
+    </div>
+    ${
+      expert.expertiseTags.length > 0
+        ? `<div class="eval-report-expertise-block"><p class="eval-report-expertise-kicker">Expertise</p><div class="eval-report-chip-row">${chips}</div></div>`
+        : ""
+    }`;
+}
+
+function coinGalleryItemHtml(
+  item: RequestMediaItem,
+  index: number,
+  resolveMediaUrl: (url: string) => string,
+  isVideo?: boolean,
+): string {
+  const src = item.kind === "image" ? item.src : item.poster?.trim() || "";
+  const zIndex = 10 - index;
+  const marginLeft = index === 0 ? 0 : -t.hero.coinImageOverlapPx;
+  const content = src
+    ? `<img src="${escapeHtml(resolveMediaUrl(src))}" alt="${escapeHtml(item.alt)}" loading="eager" crossorigin="anonymous" />`
+    : `<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#111;color:#fff;font-size:10px;font-weight:600">Video</div>`;
+  const videoBadge = isVideo
+    ? `<span style="position:absolute;bottom:2px;right:2px;width:16px;height:16px;border-radius:999px;background:rgba(0,0,0,0.7);color:#fff;font-size:8px;display:flex;align-items:center;justify-content:center">▶</span>`
+    : "";
+
+  return `<div class="eval-report-coin-gallery-item" style="z-index:${zIndex};margin-left:${marginLeft}px">${content}${videoBadge}</div>`;
+}
+
+function summaryRowHtml(icon: string, label: string, value: string): string {
+  return `
+    <div class="eval-report-summary-row">
+      <span style="color:${c.summaryIcon}">${icon}</span>
+      <span class="eval-report-summary-label">${escapeHtml(label)}</span>
+      <span class="eval-report-summary-value">${escapeHtml(value)}</span>
+    </div>`;
+}
+
+function reportCoinCardHtml(
+  report: EvaluationReportDisplay,
+  resolveMediaUrl: (url: string) => string,
+): string {
+  const gallery = reportGalleryMedia(report.media);
+  const videoItems = report.media.filter((item) => item.kind === "video");
+  const galleryHtml = [
+    ...gallery.map((item, index) =>
+      coinGalleryItemHtml(item, index, resolveMediaUrl),
+    ),
+    ...videoItems
+      .slice(0, 1)
+      .map((item, index) =>
+        coinGalleryItemHtml(item, gallery.length + index, resolveMediaUrl, true),
+      ),
+  ].join("");
+
+  const rarityBadge =
+    report.hero.rarity !== "—"
+      ? `<span class="eval-report-rarity-badge">${escapeHtml(report.hero.rarity)}</span>`
+      : "";
+
+  return `
+    <div class="eval-report-coin-header">
+      <h2 class="eval-report-coin-title">${escapeHtml(report.hero.coinTitle)}</h2>
+      ${rarityBadge}
+    </div>
+    ${galleryHtml ? `<div class="eval-report-coin-gallery">${galleryHtml}</div>` : ""}
+    <div class="eval-report-summary-box">
+      ${summaryRowHtml("🛡", "Authenticity", report.hero.authenticity)}
+      ${summaryRowHtml("★", "Condition", report.hero.condition)}
+      ${summaryRowHtml("◎", "Est. Value", report.hero.estimatedValue)}
+    </div>`;
+}
+
+function reportAssessmentHtml(report: EvaluationReportDisplay): string {
+  const tone = authenticityTone(report.assessment.authenticity);
+  const theme = authenticityAssessmentTheme(tone);
+  const authLabel =
+    report.assessment.authenticity === "—"
+      ? "Pending"
+      : report.assessment.authenticity;
+  const conditionClass = theme.showConditionTint
+    ? "eval-report-condition-card eval-report-field-block"
+    : "eval-report-condition-card eval-report-condition-card--plain eval-report-field-block";
+  const conditionStyle = theme.showConditionTint
+    ? `background:${c.conditionBg};`
+    : "";
+
+  return `
+    <div class="eval-report-assessment-card">
+      <div class="eval-report-auth-card" style="background:${theme.cardBg};">
+        <div class="eval-report-assessment-top">
+          <p class="eval-report-field-label">Authenticity</p>
+          <span class="eval-report-auth-badge" style="background:${theme.badgeBg};color:${theme.badgeText};">${escapeHtml(authLabel)}</span>
+        </div>
+        <p class="eval-report-auth-note">${escapeHtml(report.assessment.authenticityNote)}</p>
+      </div>
+      <div class="${conditionClass}" style="${conditionStyle}">
+        <p class="eval-report-field-label">Condition Grade</p>
+        <p class="eval-report-field-value">${escapeHtml(report.assessment.condition)}</p>
+      </div>
+      <div class="eval-report-recommendation eval-report-field-block">
+        <p class="eval-report-field-label">Expert Recommendation</p>
+        <p class="eval-report-field-value">${escapeHtml(report.assessment.recommendation)}</p>
+      </div>
+    </div>`;
+}
+
+function reportHeaderHtml(
+  report: EvaluationReportDisplay,
+  logoSrc: string,
+): string {
+  const requestLabel = formatReportRequestLabel(
+    report.requestDisplayId,
+    report.requestId,
+  );
+  const submittedDate = formatReportHeaderDate(report.submittedAt);
+
+  return `
+    <header class="eval-report-header">
+      <div class="eval-report-header-brand">
+        <img src="${escapeHtml(logoSrc)}" alt="${escapeHtml(EVALUATION_REPORT_BRAND)}" class="eval-report-header-logo" crossorigin="anonymous" />
+        <div>
+          <p class="eval-report-brand-name">${escapeHtml(EVALUATION_REPORT_BRAND)}</p>
+          <p class="eval-report-brand-subtitle">${escapeHtml(EVALUATION_REPORT_SUBTITLE)}</p>
+        </div>
+      </div>
+      <div class="eval-report-header-right">
+        <h1 class="eval-report-report-title">${escapeHtml(EVALUATION_REPORT_TITLE)}</h1>
+        <p class="eval-report-report-meta">Request ID: ${escapeHtml(requestLabel)} | Date: ${escapeHtml(submittedDate)}</p>
+      </div>
+    </header>`;
+}
+
+function reportPage1Html(
+  report: EvaluationReportDisplay,
+  logoSrc: string,
+  resolveMediaUrl: (url: string) => string,
+): string {
+  return `
+    <section class="eval-report-page" data-report-export-page="1">
+      <div class="eval-report-page-body">
+        ${reportHeaderHtml(report, logoSrc)}
+
+        <div class="eval-report-hero-grid">
+          <section class="eval-report-hero-card">
+            <p class="eval-report-hero-kicker">Evaluated by Expert</p>
+            ${reportExpertHtml(report, resolveMediaUrl)}
+          </section>
+          <section class="eval-report-hero-card">
+            ${reportCoinCardHtml(report, resolveMediaUrl)}
+          </section>
+        </div>
+
+        <div class="eval-report-sections-grid">
+          <div>
+            ${sectionHeadingHtml("📄", report.general.title)}
+            ${keyValueCardHtml(report.general)}
+          </div>
+          <div class="eval-report-sections-right">
+            <div>
+              ${sectionHeadingHtml("⚖", report.physical.title)}
+              ${keyValueCardHtml(report.physical)}
+            </div>
+            <div>
+              ${sectionHeadingHtml("◎", report.market.title)}
+              ${keyValueCardHtml(report.market)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>`;
+}
+
+function reportPage2Html(
+  report: EvaluationReportDisplay,
+  logoSrc: string,
+): string {
+  const footerExpert = report.expert
+    ? `<div class="eval-report-footer-right">
+        <p class="eval-report-footer-name">${escapeHtml(report.expert.fullName)}</p>
+        <p class="eval-report-footer-role">Expert Numismatist</p>
+      </div>`
+    : "";
+
+  return `
+    <section class="eval-report-page" data-report-export-page="2">
+      <div class="eval-report-page-body eval-report-page-body--page-two">
+        ${reportHeaderHtml(report, logoSrc)}
+
+        <div class="eval-report-design-block">
+          ${sectionHeadingHtml("✎", "Design Details")}
+          <div class="eval-report-design-card">
+            <div class="eval-report-field-block">
+              <p class="eval-report-field-label">Front (Obverse)</p>
+              <p class="eval-report-field-value">${escapeHtml(report.designDetails.obverse)}</p>
+            </div>
+            <div class="eval-report-field-block">
+              <p class="eval-report-field-label">Back (Reverse)</p>
+              <p class="eval-report-field-value">${escapeHtml(report.designDetails.reverse)}</p>
+            </div>
+            <div class="eval-report-field-block">
+              <p class="eval-report-field-label">History</p>
+              <p class="eval-report-field-value">${escapeHtml(report.designDetails.history)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="eval-report-assessment-block">
+          ${sectionHeadingHtml("👤", "Expert Assessment")}
+          ${reportAssessmentHtml(report)}
+        </div>
+
+        <footer class="eval-report-footer">
+          <div>
+            <p>Certified System Watermark</p>
+            <p style="margin-top:6px">Generated by Coinzy Expert Evaluation System</p>
+          </div>
+          ${footerExpert}
+        </footer>
+      </div>
+    </section>`;
 }
 
 function evaluationReportBaseFilename(report: EvaluationReportDisplay): string {
@@ -249,23 +458,34 @@ export function evaluationReportPdfFilename(
   return `${evaluationReportBaseFilename(report)}.pdf`;
 }
 
-const REPORT_LOGO_PATH = "/coinzy-logo.png";
-const REPORT_LOGO_SIZE_MM = 14;
-const REPORT_MEDIA_PROXY_PATH = "/api/expert/media";
+/** Standalone HTML document matching the modal report layout. */
+export function buildEvaluationReportPrintHtml(
+  report: EvaluationReportDisplay,
+  options?: {
+    logoDataUrl?: string | null;
+    resolveMediaUrl?: (url: string) => string;
+  },
+): string {
+  const logoSrc = options?.logoDataUrl ?? REPORT_LOGO_PATH;
+  const resolveMediaUrl =
+    options?.resolveMediaUrl ?? ((url: string) => reportMediaFetchUrl(url));
 
-function reportMediaFetchUrl(url: string): string {
-  const trimmed = url.trim();
-  if (!trimmed) return trimmed;
-  if (trimmed.startsWith("/")) return trimmed;
-  if (trimmed.startsWith("data:")) return trimmed;
-  return `${REPORT_MEDIA_PROXY_PATH}?url=${encodeURIComponent(trimmed)}`;
-}
-
-function imageFormatFromBlob(blob: Blob, dataUrl: string): "PNG" | "JPEG" {
-  if (blob.type.includes("png")) return "PNG";
-  if (blob.type.includes("jpeg") || blob.type.includes("jpg")) return "JPEG";
-  if (dataUrl.startsWith("data:image/png")) return "PNG";
-  return "JPEG";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>${escapeHtml(report.coinTitle)} — ${escapeHtml(EVALUATION_REPORT_TITLE)}</title>
+  ${evaluationReportFontLinkHtml()}
+  <style>${reportDocumentStyles()}</style>
+</head>
+<body>
+  <div class="report-pages">
+    ${reportPage1Html(report, logoSrc, resolveMediaUrl)}
+    ${reportPage2Html(report, logoSrc)}
+  </div>
+</body>
+</html>`;
 }
 
 async function loadReportLogoDataUrl(): Promise<string | null> {
@@ -277,11 +497,8 @@ async function loadReportLogoDataUrl(): Promise<string | null> {
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        if (typeof reader.result === "string") {
-          resolve(reader.result);
-          return;
-        }
-        reject(new Error("Unable to read logo."));
+        if (typeof reader.result === "string") resolve(reader.result);
+        else reject(new Error("Unable to read logo."));
       };
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(blob);
@@ -291,360 +508,533 @@ async function loadReportLogoDataUrl(): Promise<string | null> {
   }
 }
 
-/** Standalone HTML document matching the modal report layout. */
-export function buildEvaluationReportPrintHtml(
-  report: EvaluationReportDisplay,
-): string {
-  const submitted = formatReportSubmittedAt(report.submittedAt);
-  const requestLabel = report.requestDisplayId ?? report.requestId;
+function mountReportExportFrame(html: string): {
+  iframe: HTMLIFrameElement;
+  pages: HTMLElement[];
+  cleanup: () => void;
+} {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.setAttribute("title", "Export evaluation report");
+  Object.assign(iframe.style, {
+    position: "fixed",
+    left: "-10000px",
+    top: "0",
+    width: `${REPORT_PAGE_WIDTH_PX}px`,
+    height: `${REPORT_PAGE_HEIGHT_PX * 2 + 48}px`,
+    border: "0",
+    opacity: "1",
+    pointerEvents: "none",
+    visibility: "visible",
+  });
+  document.body.appendChild(iframe);
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>${escapeHtml(report.coinTitle)} — Coinzy Evaluation Report</title>
-  <style>${reportDocumentStyles()}</style>
-</head>
-<body>
-  <article class="report">
-    <header class="report-header">
-      <div class="report-header-top">
-        <img src="${REPORT_LOGO_PATH}" alt="${escapeHtml(EVALUATION_REPORT_BRAND)}" class="report-logo" />
-        <div>
-          <p class="brand-name">${escapeHtml(EVALUATION_REPORT_BRAND)}</p>
-          <p class="brand">${escapeHtml(EVALUATION_REPORT_SUBTITLE.toUpperCase())}</p>
-        </div>
-      </div>
-      <h1 class="title">${escapeHtml(report.coinTitle)}</h1>
-    </header>
-    ${reportMediaHtml(report)}
-    <div class="sections">
-      ${reportSectionsHtml(report)}
-    </div>
-    <p class="footer">Request ${escapeHtml(requestLabel)} · Submitted ${escapeHtml(submitted)}</p>
-  </article>
-</body>
-</html>`;
-}
-
-const PDF_COLORS = {
-  primary: [124, 60, 63] as [number, number, number],
-  text: [17, 17, 17] as [number, number, number],
-  textMuted: [107, 114, 128] as [number, number, number],
-  border: [229, 226, 220] as [number, number, number],
-  rowEven: [250, 249, 247] as [number, number, number],
-  white: [255, 255, 255] as [number, number, number],
-};
-
-async function loadRemoteImageDataUrl(
-  url: string,
-): Promise<{ dataUrl: string; format: "PNG" | "JPEG"; width: number; height: number } | null> {
-  const fetchTargets = url.startsWith("http")
-    ? [reportMediaFetchUrl(url), url]
-    : [reportMediaFetchUrl(url)];
-
-  for (const fetchUrl of fetchTargets) {
-    try {
-      const response = await fetch(fetchUrl, { credentials: "same-origin" });
-      if (!response.ok) continue;
-
-      const blob = await response.blob();
-      if (!blob.type.startsWith("image/") && !blob.type.includes("octet-stream")) {
-        continue;
-      }
-
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === "string") resolve(reader.result);
-          else reject(new Error("Unable to read image."));
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(blob);
-      });
-
-      const dimensions = await new Promise<{ width: number; height: number } | null>(
-        (resolve) => {
-          const image = new Image();
-          image.onload = () =>
-            resolve({ width: image.naturalWidth, height: image.naturalHeight });
-          image.onerror = () => resolve(null);
-          image.src = dataUrl;
-        },
-      );
-      if (!dimensions || dimensions.width === 0 || dimensions.height === 0) {
-        continue;
-      }
-
-      return {
-        dataUrl,
-        format: imageFormatFromBlob(blob, dataUrl),
-        ...dimensions,
-      };
-    } catch {
-      // Try next source (direct URL fallback).
-    }
+  const frameDocument = iframe.contentDocument;
+  const frameWindow = iframe.contentWindow;
+  if (!frameDocument || !frameWindow) {
+    iframe.remove();
+    throw new Error("Unable to prepare PDF export.");
   }
 
-  return null;
+  frameDocument.open();
+  frameDocument.write(html);
+  frameDocument.close();
+
+  const pages = Array.from(
+    frameDocument.querySelectorAll<HTMLElement>("[data-report-export-page]"),
+  );
+  if (pages.length === 0) {
+    iframe.remove();
+    throw new Error("Unable to prepare PDF export.");
+  }
+
+  return {
+    iframe,
+    pages,
+    cleanup: () => iframe.remove(),
+  };
 }
 
-type LoadedReportImage = {
-  dataUrl: string;
-  format: "PNG" | "JPEG";
+async function waitForElementImages(root: ParentNode): Promise<void> {
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete) {
+            resolve();
+            return;
+          }
+          image.onload = () => resolve();
+          image.onerror = () => resolve();
+        }),
+    ),
+  );
+}
+
+async function waitForFrameLayout(frameWindow: Window): Promise<void> {
+  await waitForElementImages(frameWindow.document);
+  await ensureReportFontsLoaded(frameWindow.document);
+  await new Promise<void>((resolve) => {
+    frameWindow.requestAnimationFrame(() => {
+      frameWindow.requestAnimationFrame(() => resolve());
+    });
+  });
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 200);
+  });
+}
+
+function buildResolveAssetUrl(
+  resolveMediaUrl: (url: string) => string,
+  logoDataUrl?: string | null,
+): (url: string) => string {
+  return (url: string) => {
+    const trimmed = url.trim();
+    if (
+      logoDataUrl &&
+      (trimmed === REPORT_LOGO_PATH || trimmed.endsWith("/coinzy-logo.png"))
+    ) {
+      return logoDataUrl;
+    }
+    return resolveMediaUrl(url);
+  };
+}
+
+const TRANSPARENT_PIXEL_DATA_URL =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+async function inlineImagesInRoot(
+  root: ParentNode,
+  resolveMediaUrl: (url: string) => string,
+): Promise<void> {
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    images.map(async (image) => {
+      const src = image.getAttribute("src");
+      if (!src || src.startsWith("data:")) return;
+
+      let resolved = resolveMediaUrl(src);
+      if (!resolved.startsWith("data:")) {
+        const fetched = await urlToDataUrl(src);
+        if (fetched) resolved = fetched;
+      }
+
+      if (resolved.startsWith("data:")) {
+        image.setAttribute("src", resolved);
+        image.removeAttribute("crossorigin");
+        return;
+      }
+
+      image.removeAttribute("crossorigin");
+      image.setAttribute("src", TRANSPARENT_PIXEL_DATA_URL);
+    }),
+  );
+  await waitForElementImages(root);
+}
+
+function measureReportPageCaptureSize(page?: HTMLElement): {
   width: number;
   height: number;
-  group: string;
-  label: string;
-};
-
-async function loadReportImages(
-  media: RequestMediaItem[],
-): Promise<LoadedReportImage[]> {
-  const loaded: LoadedReportImage[] = [];
-
-  for (const item of media) {
-    const src =
-      item.kind === "image"
-        ? item.src
-        : item.poster?.trim() || "";
-    if (!src) continue;
-
-    const image = await loadRemoteImageDataUrl(src);
-    if (!image) continue;
-
-    loaded.push({
-      ...image,
-      group: item.group?.trim() || "Other",
-      label: item.alt || item.group || "Coin media",
-    });
+  scale: number;
+} {
+  if (page) {
+    const rect = page.getBoundingClientRect();
+    const width = Math.round(rect.width);
+    const height = Math.round(rect.height);
+    if (width > 0 && height > 0) {
+      return { width, height, scale: REPORT_CAPTURE_SCALE };
+    }
   }
 
-  return loaded;
+  return {
+    width: REPORT_PAGE_WIDTH_PX,
+    height: REPORT_PAGE_HEIGHT_PX,
+    scale: REPORT_CAPTURE_SCALE,
+  };
 }
 
-function buildEvaluationReportPdfDocument(
-  report: EvaluationReportDisplay,
+function ensureExactCanvasSize(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  scale: number,
+): HTMLCanvasElement {
+  const expectedWidth = width * scale;
+  const expectedHeight = height * scale;
+
+  if (canvas.width === expectedWidth && canvas.height === expectedHeight) {
+    return canvas;
+  }
+
+  const normalized = document.createElement("canvas");
+  normalized.width = expectedWidth;
+  normalized.height = expectedHeight;
+  const context = normalized.getContext("2d");
+  if (!context) return canvas;
+
+  context.fillStyle = c.canvas;
+  context.fillRect(0, 0, expectedWidth, expectedHeight);
+
+  const sourceWidth = Math.min(canvas.width, expectedWidth);
+  const sourceHeight = Math.min(canvas.height, expectedHeight);
+  context.drawImage(
+    canvas,
+    0,
+    0,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    sourceWidth,
+    sourceHeight,
+  );
+  return normalized;
+}
+
+function assertCanvasHasContent(canvas: HTMLCanvasElement): void {
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Report page capture produced an empty canvas.");
+  }
+
+  const samplePoints: Array<[number, number]> = [
+    [120, 120],
+    [420, 320],
+    [680, 520],
+    [220, 920],
+    [560, 180],
+  ];
+  const bg = { r: 249, g: 248, b: 243 };
+
+  let distinctPixels = 0;
+  for (const [x, y] of samplePoints) {
+    if (x >= canvas.width || y >= canvas.height) continue;
+    const [r, g, b, a] = context.getImageData(x, y, 1, 1).data;
+    if (a === 0) continue;
+    if (
+      Math.abs(r - bg.r) > 10 ||
+      Math.abs(g - bg.g) > 10 ||
+      Math.abs(b - bg.b) > 10
+    ) {
+      distinctPixels += 1;
+    }
+  }
+
+  if (distinctPixels === 0) {
+    throw new Error("Report page capture is blank.");
+  }
+}
+
+function createOffscreenCaptureHost(): HTMLDivElement {
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  Object.assign(host.style, {
+    position: "fixed",
+    left: "-10000px",
+    top: "0",
+    width: `${REPORT_PAGE_WIDTH_PX}px`,
+    height: `${REPORT_PAGE_HEIGHT_PX}px`,
+    overflow: "hidden",
+    pointerEvents: "none",
+    zIndex: "-1",
+  });
+  document.body.appendChild(host);
+  return host;
+}
+
+function normalizeCloneForCapture(clone: HTMLElement): void {
+  clone.querySelectorAll<HTMLElement>(".eval-report-hero-profile img").forEach((avatar) => {
+    avatar.className = "eval-report-hero-avatar";
+    avatar.removeAttribute("style");
+  });
+
+  clone.querySelectorAll<HTMLElement>(".eval-report-hero-profile > span").forEach((avatar) => {
+    if (avatar.classList.contains("eval-report-hero-name")) return;
+    avatar.className = "eval-report-hero-avatar";
+    avatar.removeAttribute("style");
+  });
+
+  clone.querySelectorAll<HTMLElement>(".eval-report-coin-gallery > div").forEach((item) => {
+    item.className = "eval-report-coin-gallery-item";
+    item.removeAttribute("style");
+    item.querySelectorAll<HTMLElement>("img").forEach((image) => {
+      image.className = "";
+      image.removeAttribute("style");
+    });
+  });
+
+  clone.querySelectorAll<HTMLElement>("*").forEach((element) => {
+    for (const className of [...element.classList]) {
+      if (
+        !className.startsWith("eval-report-") &&
+        className !== "text-text"
+      ) {
+        element.classList.remove(className);
+      }
+    }
+  });
+}
+
+async function renderReportPageCanvas(
+  page: HTMLElement,
+  options?: { sourcePage?: HTMLElement },
+): Promise<HTMLCanvasElement> {
+  const { toCanvas } = await import("html-to-image");
+  const view = page.ownerDocument.defaultView;
+  const { width, height, scale } = measureReportPageCaptureSize(
+    options?.sourcePage ?? page,
+  );
+
+  view?.scrollTo(0, 0);
+
+  const canvas = await toCanvas(page, {
+    width,
+    height,
+    canvasWidth: width * scale,
+    canvasHeight: height * scale,
+    pixelRatio: 1,
+    skipAutoScale: true,
+    backgroundColor: c.canvas,
+    cacheBust: true,
+    skipFonts: true,
+    style: {
+      boxShadow: "none",
+      borderRadius: "0",
+      margin: "0",
+    },
+    filter: (node) => !(node instanceof HTMLIFrameElement),
+    onImageErrorHandler: () => undefined,
+  });
+
+  if (canvas.width === 0 || canvas.height === 0) {
+    throw new Error("Report page capture produced an empty canvas.");
+  }
+
+  const normalized = ensureExactCanvasSize(canvas, width, height, scale);
+  assertCanvasHasContent(normalized);
+  return normalized;
+}
+
+async function capturePageInDocument(
+  page: HTMLElement,
+  captureWindow: Window,
+  resolveMediaUrl: (url: string) => string,
+): Promise<HTMLCanvasElement> {
+  const container = page.parentElement;
+  const siblings = container
+    ? Array.from(
+        container.querySelectorAll<HTMLElement>("[data-report-export-page]"),
+      )
+    : [];
+  const previousDisplay = new Map<HTMLElement, string>();
+
+  for (const sibling of siblings) {
+    previousDisplay.set(sibling, sibling.style.display);
+    sibling.style.display = sibling === page ? "flex" : "none";
+  }
+
+  try {
+    captureWindow.scrollTo(0, 0);
+    await inlineImagesInRoot(page, resolveMediaUrl);
+    await ensureReportFontsLoaded(captureWindow.document);
+    await waitForPaint(captureWindow);
+    return renderReportPageCanvas(page, {
+      sourcePage: page,
+    });
+  } finally {
+    for (const [element, display] of previousDisplay) {
+      element.style.display = display;
+    }
+  }
+}
+
+async function waitForPaint(win: Window = window): Promise<void> {
+  await new Promise<void>((resolve) => {
+    win.requestAnimationFrame(() => {
+      win.requestAnimationFrame(() => resolve());
+    });
+  });
+  await new Promise<void>((resolve) => {
+    win.setTimeout(resolve, 250);
+  });
+}
+
+async function capturePreviewPage(
+  page: HTMLElement,
+  resolveMediaUrl: (url: string) => string,
+): Promise<HTMLCanvasElement> {
+  const host = createOffscreenCaptureHost();
+  const clone = page.cloneNode(true) as HTMLElement;
+
+  try {
+    host.appendChild(clone);
+    normalizeCloneForCapture(clone);
+    await inlineImagesInRoot(clone, resolveMediaUrl);
+    await ensureReportFontsLoaded(document);
+    await waitForPaint(window);
+    return await renderReportPageCanvas(clone, { sourcePage: page });
+  } finally {
+    host.remove();
+  }
+}
+
+function canvasToPdfImageData(
+  canvas: HTMLCanvasElement,
+): { dataUrl: string; format: "PNG" | "JPEG" } {
+  try {
+    return { dataUrl: canvas.toDataURL("image/png"), format: "PNG" };
+  } catch {
+    return {
+      dataUrl: canvas.toDataURL("image/jpeg", 0.98),
+      format: "JPEG",
+    };
+  }
+}
+
+function addReportPagesToPdf(
+  canvases: HTMLCanvasElement[],
   jsPDF: typeof import("jspdf").jsPDF,
-  logoDataUrl: string | null,
-  images: LoadedReportImage[],
 ): import("jspdf").jsPDF {
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-
-  const margin = 15;
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const contentWidth = pageWidth - margin * 2;
-  let y = margin;
 
-  const headerTextX = logoDataUrl
-    ? margin + REPORT_LOGO_SIZE_MM + 4
-    : margin;
+  canvases.forEach((canvas, index) => {
+    const { dataUrl, format } = canvasToPdfImageData(canvas);
 
-  if (logoDataUrl) {
-    pdf.addImage(
-      logoDataUrl,
-      "PNG",
-      margin,
-      y,
-      REPORT_LOGO_SIZE_MM,
-      REPORT_LOGO_SIZE_MM,
-    );
-  }
-
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(13);
-  pdf.setTextColor(...PDF_COLORS.text);
-  pdf.text(EVALUATION_REPORT_BRAND, headerTextX, y + 5);
-
-  pdf.setFontSize(9);
-  pdf.setTextColor(...PDF_COLORS.primary);
-  pdf.text(EVALUATION_REPORT_SUBTITLE.toUpperCase(), headerTextX, y + 10);
-
-  y += logoDataUrl ? REPORT_LOGO_SIZE_MM + 6 : 8;
-
-  const ensureSpace = (height: number) => {
-    if (y + height > pageHeight - margin) {
-      pdf.addPage();
-      y = margin;
-    }
-  };
-
-  pdf.setFontSize(18);
-  pdf.setTextColor(...PDF_COLORS.text);
-  for (const line of pdf.splitTextToSize(report.coinTitle, contentWidth)) {
-    ensureSpace(8);
-    pdf.text(line, margin, y);
-    y += 8;
-  }
-
-  y += 2;
-  pdf.setDrawColor(...PDF_COLORS.border);
-  pdf.setLineWidth(0.3);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 10;
-
-  if (images.length > 0) {
-    ensureSpace(14);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-    pdf.setTextColor(...PDF_COLORS.text);
-    pdf.text("Coin images & videos", margin, y);
-    y += 7;
-
-    const tileMm = 28;
-    const gapMm = 3;
-    const tilesPerRow = Math.max(
-      1,
-      Math.floor((contentWidth + gapMm) / (tileMm + gapMm)),
-    );
-
-    let currentGroup = "";
-    let col = 0;
-
-    for (const image of images) {
-      if (image.group !== currentGroup) {
-        if (col > 0) {
-          y += tileMm + gapMm;
-          col = 0;
-        }
-        currentGroup = image.group;
-        ensureSpace(10);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(9);
-        pdf.setTextColor(...PDF_COLORS.textMuted);
-        pdf.text(currentGroup, margin, y);
-        y += 5;
-      }
-
-      if (col === tilesPerRow) {
-        y += tileMm + gapMm;
-        col = 0;
-      }
-
-      ensureSpace(tileMm + 4);
-
-      const x = margin + col * (tileMm + gapMm);
-      const aspect = image.width / image.height;
-      let drawWidth = tileMm;
-      let drawHeight = tileMm;
-      if (aspect > 1) {
-        drawHeight = tileMm / aspect;
-      } else {
-        drawWidth = tileMm * aspect;
-      }
-
-      pdf.addImage(
-        image.dataUrl,
-        image.format,
-        x,
-        y,
-        drawWidth,
-        drawHeight,
-      );
-
-      col += 1;
-    }
-
-    if (col > 0) {
-      y += tileMm + 6;
-    }
-  }
-
-  for (const item of report.media) {
-    if (item.kind !== "video") continue;
-    if (item.poster?.trim()) continue;
-    ensureSpace(6);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-    pdf.setTextColor(...PDF_COLORS.textMuted);
-    pdf.text(
-      `Video: ${item.group?.trim() || "Attached"}`,
-      margin,
-      y,
-    );
-    y += 5;
-  }
-
-  if (report.media.some((item) => item.kind === "video" && !item.poster?.trim())) {
-    y += 4;
-  }
-
-  const labelWidth = contentWidth * 0.38;
-  const valueX = margin + labelWidth + 3;
-  const valueWidth = contentWidth - labelWidth - 3;
-  const lineHeight = 4.5;
-  const cellPadY = 3;
-  const cellPadX = 3;
-
-  for (const section of report.sections) {
-    ensureSpace(14);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-    pdf.setTextColor(...PDF_COLORS.text);
-    pdf.text(section.title, margin, y);
-    y += 7;
-
-    for (let i = 0; i < section.fields.length; i++) {
-      const field = section.fields[i];
-      const labelLines = pdf.splitTextToSize(field.label, labelWidth - cellPadX * 2);
-      const valueLines = pdf.splitTextToSize(field.value || "—", valueWidth - cellPadX * 2);
-      const rowHeight =
-        Math.max(labelLines.length, valueLines.length) * lineHeight + cellPadY * 2;
-
-      ensureSpace(rowHeight);
-
-      pdf.setFillColor(...(i % 2 === 0 ? PDF_COLORS.rowEven : PDF_COLORS.white));
-      pdf.rect(margin, y, contentWidth, rowHeight, "F");
-
-      pdf.setDrawColor(...PDF_COLORS.border);
-      pdf.setLineWidth(0.2);
-      pdf.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight);
-
-      const textY = y + cellPadY + 3;
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(...PDF_COLORS.text);
-      pdf.text(labelLines, margin + cellPadX, textY);
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(...PDF_COLORS.textMuted);
-      pdf.text(valueLines, valueX, textY);
-
-      y += rowHeight;
-    }
-
-    y += 10;
-  }
-
-  ensureSpace(8);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
-  pdf.setTextColor(...PDF_COLORS.textMuted);
-  const requestLabel = report.requestDisplayId ?? report.requestId;
-  const submitted = formatReportSubmittedAt(report.submittedAt);
-  pdf.text(`Request ${requestLabel} · Submitted ${submitted}`, margin, y);
+    if (index > 0) pdf.addPage();
+    pdf.addImage(dataUrl, format, 0, 0, pageWidth, pageHeight);
+  });
 
   return pdf;
 }
 
-/** Download a real `.pdf` file with the same content shown in the report modal. */
+function getPreviewExportPages(root: HTMLElement): HTMLElement[] {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>("[data-report-export-page]"),
+  ).sort(
+    (a, b) =>
+      Number(a.dataset.reportExportPage ?? 0) -
+      Number(b.dataset.reportExportPage ?? 0),
+  );
+}
+
+type ReportPageCaptureMode =
+  | { kind: "preview" }
+  | { kind: "document"; captureWindow: Window };
+
+async function exportReportPagesToPdf(
+  pages: HTMLElement[],
+  report: EvaluationReportDisplay,
+  resolveMediaUrl: (url: string) => string,
+  logoDataUrl?: string | null,
+  captureMode: ReportPageCaptureMode = { kind: "preview" },
+): Promise<void> {
+  const resolveAssetUrl = buildResolveAssetUrl(resolveMediaUrl, logoDataUrl);
+
+  const canvases: HTMLCanvasElement[] = [];
+  for (const page of pages) {
+    if (captureMode.kind === "document") {
+      captureMode.captureWindow.scrollTo(0, 0);
+      canvases.push(
+        await capturePageInDocument(
+          page,
+          captureMode.captureWindow,
+          resolveAssetUrl,
+        ),
+      );
+    } else {
+      canvases.push(await capturePreviewPage(page, resolveAssetUrl));
+    }
+  }
+
+  const { jsPDF } = await import("jspdf");
+  const pdf = addReportPagesToPdf(canvases, jsPDF);
+  pdf.save(evaluationReportPdfFilename(report));
+}
+
+async function preparePreviewPagesForCapture(
+  previewPages: HTMLElement[],
+): Promise<void> {
+  await ensureReportFontsLoaded(document);
+  for (const page of previewPages) {
+    await waitForElementImages(page);
+  }
+  await waitForPaint(window);
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 150);
+  });
+}
+
+async function exportReportViaIframeHtml(
+  report: EvaluationReportDisplay,
+  resolveMediaUrl: (url: string) => string,
+  logoDataUrl?: string | null,
+): Promise<void> {
+  const html = buildEvaluationReportPrintHtml(report, {
+    logoDataUrl,
+    resolveMediaUrl,
+  });
+  const { iframe, pages, cleanup } = mountReportExportFrame(html);
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    cleanup();
+    throw new Error("Unable to prepare PDF export.");
+  }
+
+  try {
+    await waitForFrameLayout(frameWindow);
+    await exportReportPagesToPdf(
+      pages,
+      report,
+      resolveMediaUrl,
+      logoDataUrl,
+      { kind: "document", captureWindow: frameWindow },
+    );
+  } finally {
+    cleanup();
+  }
+}
+
+export type EvaluationReportPdfOptions = {
+  previewRoot?: HTMLElement | null;
+};
+
+/** Download a `.pdf` file matching the modal report layout. */
 export async function downloadEvaluationReportPdf(
   report: EvaluationReportDisplay,
+  options?: EvaluationReportPdfOptions,
 ): Promise<void> {
-  const [{ jsPDF }, logoDataUrl, images] = await Promise.all([
-    import("jspdf"),
+  const [logoDataUrl, resolveMediaUrl] = await Promise.all([
     loadReportLogoDataUrl(),
-    loadReportImages(report.media),
+    inlineReportMediaUrls(report),
   ]);
-  const pdf = buildEvaluationReportPdfDocument(
-    report,
-    jsPDF,
-    logoDataUrl,
-    images,
-  );
-  pdf.save(evaluationReportPdfFilename(report));
+
+  const previewPages = options?.previewRoot
+    ? getPreviewExportPages(options.previewRoot)
+    : [];
+
+  if (previewPages.length >= 2) {
+    try {
+      await preparePreviewPagesForCapture(previewPages);
+      await exportReportPagesToPdf(
+        previewPages,
+        report,
+        resolveMediaUrl,
+        logoDataUrl,
+        { kind: "preview" },
+      );
+      return;
+    } catch (previewError) {
+      console.warn(
+        "Preview PDF capture failed, falling back to HTML export.",
+        previewError,
+      );
+    }
+  }
+
+  await exportReportViaIframeHtml(report, resolveMediaUrl, logoDataUrl);
 }
 
 /** Opens print dialog with report-only HTML (fallback). */

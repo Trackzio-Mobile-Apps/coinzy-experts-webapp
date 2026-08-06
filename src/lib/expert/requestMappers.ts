@@ -324,6 +324,39 @@ function resolveHistoryRequestLabel(request: BackendRequest): string {
   return displayId.toUpperCase();
 }
 
+const TERMINAL_QUEUE_REQUEST_STATUSES = new Set([
+  "completed",
+  "report_submitted",
+  "deadline_missed",
+  "expired",
+  "cancelled",
+]);
+
+function isTerminalQueueRequestStatus(status: string): boolean {
+  return TERMINAL_QUEUE_REQUEST_STATUSES.has(status);
+}
+
+/** Accepted evaluations that still belong on the queue (deadline active). */
+export function isAcceptedRequestEligibleForQueue(
+  request: BackendRequest,
+  nowMs = Date.now(),
+): boolean {
+  if (request.status !== "accepted") return false;
+  if (isTerminalQueueRequestStatus(request.status)) return false;
+
+  const deadlineAt = normalizeIsoDate(request.deadlineAt);
+  return !isDeadlineExceeded(deadlineAt, nowMs);
+}
+
+/** Pending offers that still belong on the queue (deadline active). */
+export function isOfferEligibleForQueue(
+  offer: BackendOffer,
+  nowMs = Date.now(),
+): boolean {
+  const { deadlineAt } = resolveOfferQueueDeadline(offer);
+  return !isDeadlineExceeded(deadlineAt, nowMs);
+}
+
 function isRequestTimeExtended(request: BackendRequest): boolean {
   const deadlineIso = normalizeIsoDate(request.deadlineAt);
   const windowIso = normalizeIsoDate(request.firstAcceptanceWindowEndsAt);
@@ -480,10 +513,13 @@ export function mapRequestToHistoryRow(
 export function buildQueueList(
   offers: BackendOffer[],
   accepted: BackendRequest[],
+  nowMs = Date.now(),
 ): QueueListItem[] {
-  const offerItems = offers.map(mapOfferToQueueItem);
+  const offerItems = offers
+    .filter((offer) => isOfferEligibleForQueue(offer, nowMs))
+    .map(mapOfferToQueueItem);
   const activeItems = accepted
-    .filter((request) => !isRequestTimeExtended(request))
+    .filter((request) => isAcceptedRequestEligibleForQueue(request, nowMs))
     .map(mapAcceptedRequestToQueueItem);
   return [...offerItems, ...activeItems].sort(
     (a, b) => a.deadlineDays - b.deadlineDays,

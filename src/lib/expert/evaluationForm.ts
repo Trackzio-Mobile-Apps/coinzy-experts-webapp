@@ -16,31 +16,12 @@ export const MINTING_METHOD_OPTIONS = [
 
 export const AUTHENTICITY_OPTIONS = ["Authentic", "Doubtful", "Fake"] as const;
 
-export const PRICE_CURRENCY_OPTIONS = [
-  "INR",
-  "USD",
-  "EUR",
-  "GBP",
-  "AED",
-  "AUD",
-  "CAD",
-  "CHF",
-  "JPY",
-  "SGD",
-] as const;
+export const PRICE_CURRENCY_OPTIONS = ["INR", "USD"] as const;
 export const DEFAULT_PRICE_CURRENCY = "INR";
 
 export const PRICE_CURRENCY_LABELS: Record<string, string> = {
   INR: "₹ INR",
   USD: "US $",
-  EUR: "€ EUR",
-  GBP: "£ GBP",
-  AED: "AED",
-  AUD: "A$ AUD",
-  CAD: "C$ CAD",
-  CHF: "CHF",
-  JPY: "¥ JPY",
-  SGD: "S$ SGD",
 };
 
 /** UI labels → API values for minting method. */

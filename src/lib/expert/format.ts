@@ -291,13 +291,13 @@ export function formatQueueDeadlineDays(deadlineDays: number): string {
   return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
-/** Queue card deadline — `Overdue` when past, otherwise day count. */
+/** Queue card deadline — `Expired` when past, otherwise day count. */
 export function formatQueueDeadlineLabel(
   deadlineAt: string | null | undefined,
   deadlineDays: number,
   nowMs = Date.now(),
 ): string {
-  if (isDeadlineExceeded(deadlineAt, nowMs)) return "Overdue";
+  if (isDeadlineExceeded(deadlineAt, nowMs)) return "Expired";
   return formatQueueDeadlineDays(deadlineDays);
 }
 

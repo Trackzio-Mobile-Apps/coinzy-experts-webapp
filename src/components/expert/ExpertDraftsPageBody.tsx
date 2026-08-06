@@ -150,7 +150,7 @@ function DraftRow({ row, nowMs }: { row: DraftListItem; nowMs: number }) {
             <span
               className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${badgeClass}`}
             >
-              {deadlineExpired ? "Overdue" : "Draft"}
+              {deadlineExpired ? "Expired" : "Draft"}
             </span>
             <div className="text-right">
               <p className="flex items-center justify-end gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
