@@ -27,11 +27,11 @@ describe("isDeadlineExceeded", () => {
 });
 
 describe("formatQueueDeadlineLabel", () => {
-  it("shows Overdue when deadlineAt has passed", () => {
+  it("shows Expired when deadlineAt has passed", () => {
     const nowMs = Date.parse("2026-08-06T12:00:00.000Z");
     expect(
       formatQueueDeadlineLabel("2026-08-06T11:00:00.000Z", 0, nowMs),
-    ).toBe("Overdue");
+    ).toBe("Expired");
   });
 
   it("shows day count when deadlineAt is still active", () => {
