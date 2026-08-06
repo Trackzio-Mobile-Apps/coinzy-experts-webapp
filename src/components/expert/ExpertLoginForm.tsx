@@ -26,7 +26,7 @@ const alertClass =
   "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800";
 
 const invalidFieldClass =
-  "border-2 border-[#FF9175] bg-[#FFF3F0] focus:border-[#FF9175] focus:ring-[#FF9175]/20";
+  "ring-2 ring-[#FF9175] bg-[#FFF3F0] focus:ring-[#FF9175]/20";
 
 const labelFieldClass =
   "[&_label]:text-xs [&_label]:font-bold [&_label]:leading-none [&_label]:text-[#555557]";
@@ -115,10 +115,10 @@ export function ExpertLoginForm() {
         autoComplete="username"
         placeholder="you@example.com"
         required
-        inputTone="surface"
+        inputTone="muted"
         error={emailError ?? undefined}
         aria-invalid={emailError ? true : undefined}
-        inputClassName={emailError ? invalidFieldClass : "border-2"}
+        inputClassName={emailError ? invalidFieldClass : undefined}
         onChange={() => {
           if (emailError) setEmailError(null);
         }}
@@ -130,10 +130,10 @@ export function ExpertLoginForm() {
         autoComplete="current-password"
         placeholder="••••••••"
         required
-        inputTone="surface"
+        inputTone="muted"
         error={passwordError ?? undefined}
         aria-invalid={passwordError ? true : undefined}
-        inputClassName={passwordError ? invalidFieldClass : "border-2"}
+        inputClassName={passwordError ? invalidFieldClass : undefined}
         onChange={() => {
           if (passwordError) setPasswordError(null);
         }}
