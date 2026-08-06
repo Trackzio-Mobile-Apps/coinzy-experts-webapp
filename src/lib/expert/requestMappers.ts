@@ -460,7 +460,9 @@ export function buildQueueList(
   accepted: BackendRequest[],
 ): QueueListItem[] {
   const offerItems = offers.map(mapOfferToQueueItem);
-  const activeItems = accepted.map(mapAcceptedRequestToQueueItem);
+  const activeItems = accepted
+    .filter((request) => !isRequestTimeExtended(request))
+    .map(mapAcceptedRequestToQueueItem);
   return [...offerItems, ...activeItems].sort(
     (a, b) => a.deadlineDays - b.deadlineDays,
   );

@@ -35,18 +35,20 @@ export function ExpertHistoryPageClient() {
 
   const allRows = useMemo(
     () =>
-      requests.map((request) => {
-        const requestId = normalizeMongoId(request._id);
-        const matchedOffer = offers.find(
-          (offer) => normalizeMongoId(offer.request._id) === requestId,
-        );
-        return mapRequestToHistoryRow(request, {
-          reportId: extractReportIdFromRequest(request) ?? undefined,
-          offerId: matchedOffer
-            ? normalizeMongoId(matchedOffer._id)
-            : undefined,
-        });
-      }),
+      requests
+        .map((request) => {
+          const requestId = normalizeMongoId(request._id);
+          const matchedOffer = offers.find(
+            (offer) => normalizeMongoId(offer.request._id) === requestId,
+          );
+          return mapRequestToHistoryRow(request, {
+            reportId: extractReportIdFromRequest(request) ?? undefined,
+            offerId: matchedOffer
+              ? normalizeMongoId(matchedOffer._id)
+              : undefined,
+          });
+        })
+        .filter((row) => row.status !== "draft"),
     [requests, offers],
   );
 
