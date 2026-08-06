@@ -3,6 +3,16 @@
  * Keeps list pages and evaluation request layouts consistent across breakpoints.
  */
 
+/** Desktop sidebar — scales with viewport on large screens. */
+export const panelSidebarClass =
+  "hidden shrink-0 flex-col border-white/10 bg-expert-sidebar text-expert-sidebar-foreground lg:sticky lg:top-0 lg:z-30 lg:flex lg:h-screen lg:max-h-screen lg:w-64 lg:overflow-y-auto lg:border-r xl:w-72 2xl:w-80";
+
+export const panelSidebarInnerClass =
+  "flex flex-1 flex-col px-5 pb-4 pt-6 xl:px-7 xl:pb-5 xl:pt-8 2xl:px-8 2xl:pb-6 2xl:pt-10";
+
+export const panelSidebarFooterClass =
+  "-mx-5 mt-auto space-y-2 border-t border-white/15 px-5 pt-3 xl:-mx-7 xl:space-y-3 xl:px-7 xl:pt-5 2xl:-mx-8 2xl:px-8";
+
 /** Max readable width for queue, drafts, history, profile list pages. */
 export const panelListPageClass =
   "mx-auto w-full max-w-7xl 2xl:max-w-[90rem]";

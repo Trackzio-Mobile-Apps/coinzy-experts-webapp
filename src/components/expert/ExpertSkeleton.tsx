@@ -1,4 +1,8 @@
-import { evaluationRequestScrollGridClass } from "@/components/expert/layout/panelLayout";
+import {
+  evaluationRequestScrollGridClass,
+  panelSidebarClass,
+  panelSidebarInnerClass,
+} from "@/components/expert/layout/panelLayout";
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -237,12 +241,14 @@ export function ExpertSessionSkeleton() {
       aria-busy="true"
       aria-label="Loading session"
     >
-      <aside className="hidden w-[17.5rem] shrink-0 border-r border-white/10 bg-expert-sidebar px-4 py-8 lg:block">
-        <SkeletonBone className="h-11 w-40 bg-white/15" />
-        <div className="mt-10 space-y-3">
+      <aside className={panelSidebarClass}>
+        <div className={panelSidebarInnerClass}>
+        <SkeletonBone className="h-11 w-40 bg-white/15 xl:h-12 xl:w-44 2xl:h-14 2xl:w-48" />
+        <div className="mt-10 space-y-3 xl:space-y-4">
           {Array.from({ length: 4 }, (_, index) => (
-            <SkeletonBone key={index} className="h-10 w-full rounded-xl bg-white/10" />
+            <SkeletonBone key={index} className="h-10 w-full rounded-xl bg-white/10 xl:h-11 2xl:h-12" />
           ))}
+        </div>
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 items-start justify-center px-4 py-8 sm:px-6 lg:px-10">
