@@ -1,7 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { formatQueueRequestIdLabel } from "@/lib/expert/format";
+import {
+  formatQueueDeadlineLabel,
+  formatQueueRequestIdLabel,
+  isDeadlineExceeded,
+} from "@/lib/expert/format";
 import { mapOfferToQueueItem } from "@/lib/expert/requestMappers";
 import type { BackendOffer } from "@/lib/expert/types";
+
+describe("isDeadlineExceeded", () => {
+  it("returns true when now is at or after deadlineAt", () => {
+    const nowMs = Date.parse("2026-08-06T12:00:00.000Z");
+    expect(
+      isDeadlineExceeded("2026-08-06T12:00:00.000Z", nowMs),
+    ).toBe(true);
+    expect(
+      isDeadlineExceeded("2026-08-06T11:59:59.999Z", nowMs),
+    ).toBe(true);
+  });
+
+  it("returns false when deadlineAt is still in the future", () => {
+    const nowMs = Date.parse("2026-08-06T12:00:00.000Z");
+    expect(
+      isDeadlineExceeded("2026-08-06T12:00:01.000Z", nowMs),
+    ).toBe(false);
+  });
+});
+
+describe("formatQueueDeadlineLabel", () => {
+  it("shows Overdue when deadlineAt has passed", () => {
+    const nowMs = Date.parse("2026-08-06T12:00:00.000Z");
+    expect(
+      formatQueueDeadlineLabel("2026-08-06T11:00:00.000Z", 0, nowMs),
+    ).toBe("Overdue");
+  });
+
+  it("shows day count when deadlineAt is still active", () => {
+    const nowMs = Date.parse("2026-08-06T12:00:00.000Z");
+    expect(
+      formatQueueDeadlineLabel("2026-08-08T12:00:00.000Z", 2, nowMs),
+    ).toBe("2 days");
+  });
+});
 
 describe("formatQueueRequestIdLabel", () => {
   it("formats numeric display ids as REQ-ID with zero padding", () => {
@@ -51,5 +90,23 @@ describe("resolveDisplayId via mapOfferToQueueItem", () => {
     expect(formatQueueRequestIdLabel(mapOfferToQueueItem(offer).displayId)).toBe(
       "REQ-ID 00016",
     );
+  });
+
+  it("uses the sooner of request deadline and offer expiry", () => {
+    const offer = {
+      _id: "offer1",
+      expiresAt: "2026-08-05T12:00:00.000Z",
+      request: {
+        _id: "req1",
+        displayId: "16",
+        status: "offered",
+        deadlineAt: "2026-08-10T12:00:00.000Z",
+      },
+    } as unknown as BackendOffer;
+
+    const nowMs = Date.parse("2026-08-06T12:00:00.000Z");
+    const item = mapOfferToQueueItem(offer);
+    expect(item.deadlineAt).toBe("2026-08-05T12:00:00.000Z");
+    expect(isDeadlineExceeded(item.deadlineAt, nowMs)).toBe(true);
   });
 });

@@ -347,11 +347,33 @@ function resolveQueueRowVariant(
   return "in_progress";
 }
 
+function resolveOfferQueueDeadline(offer: BackendOffer): {
+  deadlineAt: string | null;
+  deadlineExpired: boolean;
+} {
+  const requestDeadlineAt = normalizeIsoDate(offer.request.deadlineAt);
+  const offerExpiresAt = normalizeIsoDate(offer.expiresAt);
+
+  if (requestDeadlineAt && offerExpiresAt) {
+    const reqMs = new Date(requestDeadlineAt).getTime();
+    const offMs = new Date(offerExpiresAt).getTime();
+    const deadlineAt = reqMs <= offMs ? requestDeadlineAt : offerExpiresAt;
+    return {
+      deadlineAt,
+      deadlineExpired: isDeadlineExceeded(deadlineAt),
+    };
+  }
+
+  const deadlineAt = requestDeadlineAt ?? offerExpiresAt;
+  return {
+    deadlineAt,
+    deadlineExpired: isDeadlineExceeded(deadlineAt),
+  };
+}
+
 export function mapOfferToQueueItem(offer: BackendOffer): QueueListItem {
   const request = offer.request;
-  const deadlineAt = normalizeIsoDate(
-    request.deadlineAt ?? offer.expiresAt,
-  );
+  const { deadlineAt, deadlineExpired } = resolveOfferQueueDeadline(offer);
   const status: QueueItemStatus = "pending_review";
   return {
     id: normalizeMongoId(request._id),
@@ -362,7 +384,7 @@ export function mapOfferToQueueItem(offer: BackendOffer): QueueListItem {
     variant: resolveQueueRowVariant(request, status),
     deadlineDays: daysUntil(deadlineAt),
     deadlineAt,
-    deadlineExpired: isDeadlineExceeded(deadlineAt),
+    deadlineExpired,
     coinName: resolveCoinName(request),
     thumbnailUrls: pickQueueThumbnailUrls(request.payload),
   };
