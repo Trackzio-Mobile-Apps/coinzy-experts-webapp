@@ -1,6 +1,5 @@
 import {
   EVALUATION_FORM_SECTIONS,
-  formatEstimatedPriceRange,
   normalizeEvaluationFormState,
 } from "@/lib/expert/evaluationForm";
 import {
@@ -62,19 +61,17 @@ function displayValue(value: unknown): string {
 }
 
 function buildMarketSection(form: EvaluationFormState): EvaluationReportSection {
-  const priceRange =
-    formatEstimatedPriceRange(
-      form.estimatedPriceMin ?? "",
-      form.estimatedPriceMax ?? "",
-    ) || "";
-
   return {
-    title: "Market value and rarity",
+    title: "Market Value and Rarity",
     fields: [
+      {
+        label: "Estimated Price Range (Min - Max)",
+        value: displayValue(form.estimatedPriceRange),
+      },
       { label: "Rarity", value: displayValue(form.rarity) },
       {
-        label: "Estimated Price Range (min and max)",
-        value: displayValue(priceRange),
+        label: "Currency",
+        value: displayValue(form.priceCurrency),
       },
     ],
   };
@@ -101,10 +98,20 @@ export function buildEvaluationReportDisplay(
 
       return {
         title: section.title,
-        fields: section.fields.map((field) => ({
-          label: field.label,
-          value: displayValue(form[field.key]),
-        })),
+        fields: section.fields.map((field) => {
+          if (field.key === "weight") {
+            const amount = displayValue(form.weight);
+            const unit = displayValue(form.weightUnit);
+            return {
+              label: field.label,
+              value: amount === "—" ? amount : unit === "—" ? amount : `${amount} ${unit}`,
+            };
+          }
+          return {
+            label: field.label,
+            value: displayValue(form[field.key]),
+          };
+        }),
       };
     },
   );

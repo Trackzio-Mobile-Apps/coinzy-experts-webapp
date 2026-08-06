@@ -6,10 +6,8 @@ import {
   acceptOffer,
   ExpertOffersError,
   formatOfferErrorMessage,
-  skipOffer,
 } from "@/lib/expert/offersService";
 import {
-  clearEvaluationDraft,
   loadEvaluationDraftReportId,
   saveEvaluationDraftReportId,
 } from "@/lib/expert/evaluationDraftStorage";
@@ -45,8 +43,6 @@ export function ExpertQueueRequestPageClient({
     useExpertPanelData();
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
-  const [reassigning, setReassigning] = useState(false);
-  const [reassignError, setReassignError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   /** After a successful Accept — keeps the evaluation form open. */
   const [accepted, setAccepted] = useState(false);
@@ -101,7 +97,7 @@ export function ExpertQueueRequestPageClient({
   const matchedOfferId = matchedOffer
     ? normalizeMongoId(matchedOffer._id)
     : undefined;
-  // Prefer live offer match; keep URL offerId after accept so reassign can still call skip.
+  // Prefer live offer match; keep URL offerId after accept for queue sync.
   const actionOfferId = matchedOfferId ?? offerId;
 
   useEffect(() => {
@@ -116,11 +112,18 @@ export function ExpertQueueRequestPageClient({
     }
   }, [request, requestId]);
 
+  // Offer left this expert's queue (e.g. another expert accepted) while this
+  // page is still open. Do not use URL offerId here — that stale id would
+  // keep Accept enabled after the live offer is gone.
+  const lostOffer =
+    !isLoading &&
+    !accepted &&
+    !matchedOfferId &&
+    request?.status === "offered";
+
   const detail = useMemo<EvaluationRequestDetail | null>(() => {
     if (!request) return null;
 
-    const isOffered = request.status === "offered";
-    const lostOffer = isOffered && !actionOfferId && !accepted;
     const deadlineMissedStatus =
       request.status === "deadline_missed" || request.status === "expired";
 
@@ -133,13 +136,23 @@ export function ExpertQueueRequestPageClient({
           ? { ...request, status: "accepted" as const }
           : request;
 
+    const isUnavailable = unavailable || lostOffer;
+
     return buildEvaluationDetail({
       request: requestForView,
-      offerId: actionOfferId,
-      unavailable: unavailable || lostOffer,
+      // Hide Accept when the live offer is gone (ignore stale URL offerId).
+      offerId: isUnavailable ? undefined : actionOfferId,
+      unavailable: isUnavailable,
       reportId: knownReportId,
     });
-  }, [request, actionOfferId, unavailable, accepted, knownReportId]);
+  }, [
+    request,
+    actionOfferId,
+    unavailable,
+    lostOffer,
+    accepted,
+    knownReportId,
+  ]);
 
   // Already accepted on the server → open evaluation form.
   useEffect(() => {
@@ -154,17 +167,17 @@ export function ExpertQueueRequestPageClient({
   }, [request?.status]);
 
   const handleAccept = useCallback(async () => {
-    if (!actionOfferId || accepting) return;
+    // Only accept from a live queue offer — never a stale URL offerId.
+    if (!matchedOfferId || accepting) return;
 
     setAccepting(true);
     setAcceptError(null);
-    setReassignError(null);
     try {
       console.log("[expert] accepting offer", {
-        offerId: actionOfferId,
+        offerId: matchedOfferId,
         requestId,
       });
-      await acceptOffer(actionOfferId);
+      await acceptOffer(matchedOfferId);
       setAccepted(true);
       setShowAcceptedToast(true);
       setUnavailable(false);
@@ -232,38 +245,7 @@ export function ExpertQueueRequestPageClient({
     } finally {
       setAccepting(false);
     }
-  }, [actionOfferId, accepting, requestId, refresh, request, knownReportId]);
-
-  const handleReassign = useCallback(async () => {
-    if (!actionOfferId || reassigning) return;
-
-    const confirmed = window.confirm(
-      "Reassign this request? It will be skipped and returned to the offer pool.",
-    );
-    if (!confirmed) return;
-
-    setReassigning(true);
-    setReassignError(null);
-    try {
-      console.log("[expert] skipping/reassigning offer", {
-        offerId: actionOfferId,
-        requestId,
-      });
-      await skipOffer(actionOfferId);
-      clearEvaluationDraft(requestId);
-      setKnownReportId(null);
-      await refresh();
-      router.push("/expert/queue");
-    } catch (err) {
-      const status = err instanceof ExpertOffersError ? err.status : 0;
-      const rawMessage =
-        err instanceof Error ? err.message : "Unable to reassign offer.";
-      const { message } = formatOfferErrorMessage(rawMessage, status, "skip");
-      setReassignError(message);
-    } finally {
-      setReassigning(false);
-    }
-  }, [actionOfferId, reassigning, requestId, refresh, router]);
+  }, [matchedOfferId, accepting, requestId, refresh, request, knownReportId]);
 
   // Only skeleton on first load — never unmount the form after it has opened.
   if (isLoading && !detail) {
@@ -293,11 +275,8 @@ export function ExpertQueueRequestPageClient({
       detail={detail}
       accepting={accepting}
       acceptError={acceptError}
-      reassigning={reassigning}
-      reassignError={reassignError}
       showAcceptedToast={showAcceptedToast}
       onAccept={handleAccept}
-      onReassign={handleReassign}
       onDismissToast={() => setShowAcceptedToast(false)}
       onSubmitted={async () => {
         await refresh();

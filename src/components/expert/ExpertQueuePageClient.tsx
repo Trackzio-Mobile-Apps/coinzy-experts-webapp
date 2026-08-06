@@ -19,6 +19,7 @@ export function ExpertQueuePageClient() {
     useExpertPanelData();
   const [showLoginToast, setShowLoginToast] = useState(false);
   const [showNewRequestToast, setShowNewRequestToast] = useState(false);
+  const [showSkipToast, setShowSkipToast] = useState(false);
   const [newRequestCount, setNewRequestCount] = useState(0);
   const [skippingOfferId, setSkippingOfferId] = useState<string | null>(null);
   const [skipError, setSkipError] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function ExpertQueuePageClient() {
     () => setShowNewRequestToast(false),
     [],
   );
+  const closeSkipToast = useCallback(() => setShowSkipToast(false), []);
 
   const handleSkipOffer = useCallback(
     async (offerId: string, requestId: string) => {
@@ -76,6 +78,7 @@ export function ExpertQueuePageClient() {
         await skipOffer(offerId);
         clearEvaluationDraft(requestId);
         await refresh();
+        setShowSkipToast(true);
       } catch (err) {
         const status = err instanceof ExpertOffersError ? err.status : 0;
         const rawMessage =
@@ -140,6 +143,11 @@ export function ExpertQueuePageClient() {
         message={newRequestMessage}
         variant="info"
         onClose={closeNewRequestToast}
+      />
+      <ExpertToast
+        open={showSkipToast}
+        message="Request reassigned to another expert."
+        onClose={closeSkipToast}
       />
     </ExpertDashboardSection>
   );

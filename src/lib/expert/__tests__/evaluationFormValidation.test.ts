@@ -26,15 +26,19 @@ describe("evaluationFormValidation", () => {
     expect(validateEvaluationField("weight", "", {})).toBeNull();
   });
 
-  it("requires max price to be greater than or equal to min price", () => {
-    const form = {
-      ...createInitialEvaluationFormState(),
-      estimatedPriceMin: "100",
-      estimatedPriceMax: "50",
-    };
-
-    expect(validateEvaluationField("estimatedPriceMax", "50", form)).toMatch(
-      /greater than or equal/i,
+  it("validates estimated price range when provided", () => {
+    expect(validateEvaluationField("estimatedPriceRange", "ab", {})).toMatch(
+      /at least 3/i,
     );
+    expect(
+      validateEvaluationField("estimatedPriceRange", "₹5,000 – ₹15,000", {}),
+    ).toBeNull();
+  });
+
+  it("validates recommendation when provided", () => {
+    expect(validateEvaluationField("recommendation", "H", {})).toMatch(
+      /at least 2/i,
+    );
+    expect(validateEvaluationField("recommendation", "Hold", {})).toBeNull();
   });
 });

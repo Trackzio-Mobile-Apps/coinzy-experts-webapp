@@ -5,6 +5,7 @@ export type SelectGroupProps = {
   id: string;
   error?: string;
   labelUppercase?: boolean;
+  labelHint?: string;
   inputTone?: "muted" | "surface";
   className?: string;
   selectClassName?: string;
@@ -12,13 +13,14 @@ export type SelectGroupProps = {
 } & Omit<SelectHTMLAttributes<HTMLSelectElement>, "id" | "className">;
 
 const selectShellClass =
-  "w-full rounded-lg border border-border px-3.5 py-2.5 text-sm text-text outline-none transition-[box-shadow,border-color] focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "w-full rounded-lg border border-input-border px-3.5 py-2.5 text-sm text-text outline-none transition-[box-shadow,border-color] focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export function SelectGroup({
   label,
   id,
   error,
   labelUppercase = false,
+  labelHint,
   inputTone = "muted",
   className = "",
   selectClassName = "",
@@ -37,11 +39,16 @@ export function SelectGroup({
         htmlFor={id}
         className={
           labelUppercase
-            ? "text-xs font-semibold uppercase tracking-[0.1em] text-text"
+            ? "flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs font-semibold uppercase tracking-[0.1em] text-text"
             : "text-sm font-medium text-text-muted"
         }
       >
-        {label}
+        <span>{label}</span>
+        {labelHint ? (
+          <span className="text-xs font-normal normal-case tracking-normal text-text-muted">
+            {labelHint}
+          </span>
+        ) : null}
       </label>
       <select id={id} className={mergedSelectClass} {...selectProps}>
         {placeholder ? (

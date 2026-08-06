@@ -93,6 +93,7 @@ export type ReportDesignDetails = {
 
 export type ReportValueAndRarity = {
   rarity: string;
+  currency: string;
   estimatedPriceRange: string;
 };
 
@@ -329,6 +330,18 @@ export type EvaluationRequestDetail = {
   media: RequestMediaItem[];
 };
 
+/** Unit/currency picker rendered beside a value input and saved with it. */
+export type EvaluationFormUnitDef = {
+  key: string;
+  label: string;
+  options: readonly string[];
+  defaultValue: string;
+  /** Compact labels for the picker (e.g. `US $` for USD). */
+  optionLabels?: Readonly<Record<string, string>>;
+  /** When `start`, the unit picker renders before the value input. */
+  position?: "start" | "end";
+};
+
 export type EvaluationFormFieldDef = {
   key: string;
   label: string;
@@ -337,6 +350,14 @@ export type EvaluationFormFieldDef = {
   inputMode?: "decimal" | "numeric" | "text";
   /** When true, required for progress % and submit. Defaults to false. */
   required?: boolean;
+  /** Span both columns on sm+ grid layouts. */
+  fullWidth?: boolean;
+  /** Renders in the same grid row as another field (inner two-column split). */
+  pairWith?: string;
+  unit?: EvaluationFormUnitDef;
+  /** Renders a single-choice dropdown instead of a free-text input. */
+  options?: readonly string[];
+  placeholder?: string;
 };
 
 export type EvaluationFormSectionDef = {

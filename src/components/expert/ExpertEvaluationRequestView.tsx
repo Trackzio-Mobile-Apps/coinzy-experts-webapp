@@ -6,7 +6,6 @@ import {
   createInitialEvaluationFormState,
   evaluateFormProgress,
   EVALUATION_FORM_SECTIONS,
-  getSectionProgress,
   getSectionStepState,
   normalizeEvaluationFormState,
   type SectionStepState,
@@ -47,7 +46,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EvaluationFormPanel } from "./EvaluationFormPanel";
 import { EvaluationMediaLightbox } from "./EvaluationMediaLightbox";
+import { ExpertToast } from "./ExpertToast";
 import { ExpandMediaGalleryIcon } from "./ExpandMediaGalleryIcon";
 import { ExpertDeadlineExceededModal } from "./ExpertDeadlineExceededModal";
 import { ExpertLeaveWithoutSavingModal } from "./ExpertLeaveWithoutSavingModal";
@@ -59,71 +60,20 @@ type ExpertEvaluationRequestViewProps = {
   accepting?: boolean;
   acceptError?: string | null;
   showAcceptedToast?: boolean;
-  reassigning?: boolean;
-  reassignError?: string | null;
   onAccept?: () => void | Promise<void>;
-  onReassign?: () => void | Promise<void>;
   onDismissToast?: () => void;
   onSubmitted?: () => void | Promise<void>;
 };
 
-const inputClass =
-  "w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm text-text outline-none transition-[box-shadow,border-color] placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/20";
-
 const labelClass =
   "text-xs font-semibold uppercase tracking-[0.1em] text-text";
-
-function FieldBlock({
-  label,
-  id,
-  children,
-  className = "",
-  required = false,
-  description,
-  error,
-}: {
-  label: string;
-  id: string;
-  children: ReactNode;
-  className?: string;
-  required?: boolean;
-  description?: string;
-  error?: string;
-}) {
-  return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label htmlFor={id} className={labelClass}>
-        {label}
-        {required ? (
-          <span className="text-expert-error" aria-hidden>
-            {" "}
-            *
-          </span>
-        ) : (
-          <span className="ml-1 font-normal normal-case tracking-normal text-text-muted">
-            (optional)
-          </span>
-        )}
-      </label>
-      {description ? (
-        <p className="text-xs leading-relaxed text-text-muted">{description}</p>
-      ) : null}
-      {children}
-      {error ? (
-        <p className="text-xs text-expert-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
-}
 
 function stepCircleClass(state: SectionStepState): string {
   switch (state) {
     case "complete":
       return "bg-expert-action-green text-white shadow-sm";
     case "in_progress":
-      return "border-2 border-expert-action-green bg-expert-action-green-soft text-expert-action-green-text";
+      return "bg-expert-action-green text-white shadow-sm";
     default:
       return "border border-border bg-input-bg text-text-muted";
   }
@@ -352,9 +302,6 @@ function RequestHeader({
   showSubmitButton,
   submitDisabled,
   showDeadlineCard = true,
-  reassigning = false,
-  reassignDisabled = false,
-  onReassign,
 }: {
   detail: EvaluationRequestDetail;
   formId: string;
@@ -362,12 +309,7 @@ function RequestHeader({
   showSubmitButton: boolean;
   submitDisabled: boolean;
   showDeadlineCard?: boolean;
-  reassigning?: boolean;
-  reassignDisabled?: boolean;
-  onReassign?: () => void | Promise<void>;
 }) {
-  const reassignBlocked = reassignDisabled || reassigning || !onReassign;
-
   return (
     <header className="mb-4 shrink-0">
       <div className="mb-4 flex min-h-10 flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
@@ -377,19 +319,6 @@ function RequestHeader({
             <span className="text-xs font-medium text-text-muted">
               ✓ Auto save on
             </span>
-            <button
-              type="button"
-              disabled={reassignBlocked}
-              title={
-                reassignBlocked && !reassigning
-                  ? "Offer id missing — open this request from the queue"
-                  : "Decline this offer and return it to the pool"
-              }
-              onClick={() => void onReassign?.()}
-              className="rounded-lg border border-primary px-5 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {reassigning ? "Reassigning…" : "Reassign"}
-            </button>
             {showSubmitButton ? (
               <button
                 type="submit"
@@ -482,40 +411,12 @@ function RequestPageFrame({ children }: { children: ReactNode }) {
   );
 }
 
-function AcceptedToast({ onDismiss }: { onDismiss?: () => void }) {
-  useEffect(() => {
-    if (!onDismiss) return;
-    const timer = window.setTimeout(onDismiss, 3500);
-    return () => window.clearTimeout(timer);
-  }, [onDismiss]);
-
-  return (
-    <div
-      role="status"
-      className="fixed inset-x-4 bottom-6 z-40 mx-auto flex max-w-md items-center justify-between gap-3 rounded-xl border border-border/80 bg-surface px-4 py-3 text-sm font-medium text-text shadow-lg sm:inset-x-auto sm:right-6 sm:left-auto"
-    >
-      <span>Evaluation request was accepted successfully.</span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="shrink-0 text-text-muted transition-colors hover:text-text"
-        aria-label="Dismiss"
-      >
-        ✕
-      </button>
-    </div>
-  );
-}
-
 export function ExpertEvaluationRequestView({
   detail,
   accepting = false,
   acceptError = null,
   showAcceptedToast = false,
-  reassigning = false,
-  reassignError = null,
   onAccept,
-  onReassign,
   onDismissToast,
   onSubmitted,
 }: ExpertEvaluationRequestViewProps) {
@@ -556,7 +457,6 @@ export function ExpertEvaluationRequestView({
   );
   const [deadlineMissedFromSocket, setDeadlineMissedFromSocket] =
     useState(false);
-  const reassignDisabled = !detail.offerId || !onReassign;
   const draftReportIdRef = useRef(draftReportId);
   const saveGenerationRef = useRef(0);
   const formRef = useRef(form);
@@ -916,28 +816,16 @@ export function ExpertEvaluationRequestView({
   const setField = (key: string, value: string) => {
     setForm((prev) => {
       const nextForm = { ...prev, [key]: value };
-      if (
-        showAllFieldErrors ||
-        fieldErrors[key] ||
-        (key === "estimatedPriceMin" &&
-          ((nextForm.estimatedPriceMax ?? "").trim().length > 0 ||
-            Boolean(fieldErrors.estimatedPriceMax)))
-      ) {
-        const keysToValidate =
-          key === "estimatedPriceMin"
-            ? ([key, "estimatedPriceMax"] as const)
-            : ([key] as const);
+      if (showAllFieldErrors || fieldErrors[key]) {
         setFieldErrors((current) => {
           const next = { ...current };
-          for (const fieldKey of keysToValidate) {
-            const error = validateEvaluationField(
-              fieldKey,
-              nextForm[fieldKey] ?? "",
-              nextForm,
-            );
-            if (error) next[fieldKey] = error;
-            else delete next[fieldKey];
-          }
+          const error = validateEvaluationField(
+            key,
+            nextForm[key] ?? "",
+            nextForm,
+          );
+          if (error) next[key] = error;
+          else delete next[key];
           return next;
         });
       }
@@ -946,21 +834,11 @@ export function ExpertEvaluationRequestView({
   };
 
   const handleFieldBlur = (key: string) => {
-    const keysToValidate =
-      key === "estimatedPriceMin"
-        ? ([key, "estimatedPriceMax"] as const)
-        : ([key] as const);
     setFieldErrors((current) => {
       const next = { ...current };
-      for (const fieldKey of keysToValidate) {
-        const error = validateEvaluationField(
-          fieldKey,
-          form[fieldKey] ?? "",
-          form,
-        );
-        if (error) next[fieldKey] = error;
-        else delete next[fieldKey];
-      }
+      const error = validateEvaluationField(key, form[key] ?? "", form);
+      if (error) next[key] = error;
+      else delete next[key];
       return next;
     });
   };
@@ -1145,9 +1023,6 @@ export function ExpertEvaluationRequestView({
           showSubmit
           showSubmitButton={showSubmitButton}
           submitDisabled={submitBlocked}
-          reassigning={reassigning}
-          reassignDisabled={reassignDisabled}
-          onReassign={onReassign}
         />
 
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
@@ -1156,25 +1031,19 @@ export function ExpertEvaluationRequestView({
           <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-visible lg:overflow-y-auto lg:overscroll-contain lg:pe-1">
             <EvaluationProgressStepper form={form} />
 
-            {reassignError ? (
-              <p className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                {reassignError}
-              </p>
-            ) : null}
-
             {submitError ? (
               <p className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
                 {submitError}
               </p>
             ) : null}
 
-            <div className="min-w-0 flex-1 rounded-xl border border-border/70 bg-surface shadow-sm">
+            <div className="min-w-0 flex-1 rounded-xl bg-surface">
               <form
                 id={formId}
                 className="flex flex-col"
                 onSubmit={handleSubmit}
               >
-                <div className="shrink-0 border-b border-border/60 px-4 py-4 sm:px-5">
+                <div className="shrink-0 px-4 py-4 sm:px-5">
                   <h2 className="text-xl font-semibold tracking-tight text-text">
                     Evaluation form
                   </h2>
@@ -1184,113 +1053,16 @@ export function ExpertEvaluationRequestView({
                   </p>
                 </div>
 
-                <div className="space-y-6 px-4 py-5 sm:space-y-8 sm:px-5">
-                  {EVALUATION_FORM_SECTIONS.map((section, si) => {
-                    const sectionState = getSectionStepState(form, section.id);
-                    const { filled, total } = getSectionProgress(
-                      form,
-                      section.id,
-                    );
-
-                    return (
-                      <section
-                        key={section.id}
-                        className="rounded-xl border border-border/70 bg-input-bg/20 p-4 sm:p-5"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h3 className="text-base font-semibold text-text">
-                            <span
-                              className={`mr-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
-                                sectionState === "complete"
-                                  ? "bg-expert-action-green text-white"
-                                  : sectionState === "in_progress"
-                                    ? "border border-expert-action-green bg-expert-action-green-soft text-expert-action-green-text"
-                                    : "bg-primary/10 text-primary"
-                              }`}
-                            >
-                              {sectionState === "complete" ? "✓" : si + 1}
-                            </span>
-                            {section.title}
-                          </h3>
-                          <span
-                            className={`text-xs font-medium ${
-                              sectionState === "complete"
-                                ? "text-expert-action-green-text"
-                                : "text-text-muted"
-                            }`}
-                          >
-                            {sectionState === "complete"
-                              ? "Completed"
-                              : sectionState === "in_progress"
-                                ? `${filled} of ${total} required filled`
-                                : "Not started"}
-                          </span>
-                        </div>
-
-                        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                          {section.fields.map((field) => {
-                            const id = `${section.id}-${field.key}`;
-                            const isRequired = Boolean(field.required);
-                            const fieldError = fieldErrors[field.key];
-                            const invalidClass = fieldError
-                              ? "border-expert-error focus:border-expert-error focus:ring-expert-error/20"
-                              : "";
-                            return (
-                              <FieldBlock
-                                key={field.key}
-                                label={field.label}
-                                id={id}
-                                required={isRequired}
-                                description={field.description}
-                                error={fieldError}
-                                className={
-                                  field.multiline ? "sm:col-span-2" : undefined
-                                }
-                              >
-                                {field.multiline ? (
-                                  <textarea
-                                    id={id}
-                                    name={field.key}
-                                    rows={4}
-                                    required={isRequired}
-                                    aria-required={isRequired}
-                                    aria-invalid={Boolean(fieldError)}
-                                    value={form[field.key] ?? ""}
-                                    onChange={(e) =>
-                                      setField(field.key, e.target.value)
-                                    }
-                                    onBlur={() => handleFieldBlur(field.key)}
-                                    className={`${inputClass} min-h-[6rem] resize-y ${invalidClass}`}
-                                    placeholder={field.description ?? "—"}
-                                  />
-                                ) : (
-                                  <input
-                                    id={id}
-                                    name={field.key}
-                                    type="text"
-                                    required={isRequired}
-                                    aria-required={isRequired}
-                                    aria-invalid={Boolean(fieldError)}
-                                    inputMode={field.inputMode ?? "text"}
-                                    value={form[field.key] ?? ""}
-                                    onChange={(e) =>
-                                      setField(field.key, e.target.value)
-                                    }
-                                    onBlur={() => handleFieldBlur(field.key)}
-                                    className={`${inputClass} ${invalidClass}`}
-                                    placeholder={field.description ?? "—"}
-                                  />
-                                )}
-                              </FieldBlock>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    );
-                  })}
+                <div className="px-4 py-5 sm:px-5">
+                  <EvaluationFormPanel
+                    form={form}
+                    fieldErrors={fieldErrors}
+                    onFieldChange={setField}
+                    onFieldBlur={handleFieldBlur}
+                  />
                 </div>
 
-                <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-between gap-4 border-t border-border/70 bg-surface/95 px-4 py-3 backdrop-blur-sm sm:px-5">
+                <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-between gap-4 bg-surface/95 px-4 py-3 backdrop-blur-sm sm:px-5">
                   <span className="text-xs font-medium text-text-muted">
                     {draftSaveState === "saving"
                       ? "Saving draft…"
@@ -1348,7 +1120,11 @@ export function ExpertEvaluationRequestView({
         onConfirm={confirmSubmitReport}
       />
 
-      {showAcceptedToast ? <AcceptedToast onDismiss={onDismissToast} /> : null}
+      <ExpertToast
+        open={showAcceptedToast}
+        message="Evaluation request accepted successfully"
+        onClose={onDismissToast ?? (() => {})}
+      />
 
       {lightbox != null ? (
         <EvaluationMediaLightbox

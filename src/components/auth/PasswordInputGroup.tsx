@@ -13,7 +13,7 @@ export type PasswordInputGroupProps = {
 } & Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type" | "className">;
 
 const inputShellClass =
-  "w-full rounded-lg border border-border py-2.5 pl-3.5 pr-11 text-sm text-text outline-none transition-[box-shadow,border-color] placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "w-full rounded-lg border border-input-border bg-input-bg py-2.5 pl-3.5 pr-11 text-sm text-text outline-none transition-[box-shadow,border-color] placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 function EyeToggleIcon({ visible }: { visible: boolean }) {
   if (visible) {

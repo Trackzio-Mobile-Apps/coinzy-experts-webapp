@@ -12,6 +12,7 @@
   --color-text-muted: var(--coinzy-text-muted);
   --color-border: var(--coinzy-border);
   --color-input-bg: var(--coinzy-input-bg);
+  --color-input-border: var(--coinzy-input-border);
   --color-logo-bg: var(--coinzy-logo-bg);
   --color-logo-accent: var(--coinzy-logo-accent);
   --color-success-ring: var(--coinzy-success-ring);
@@ -43,6 +44,9 @@
   --color-expert-action-amber-soft: var(--coinzy-expert-action-amber-soft);
   --color-expert-action-amber-text: var(--coinzy-expert-action-amber-text);
   --color-expert-action-amber-ring: var(--coinzy-expert-action-amber-ring);
+
+  --color-expert-action-orange: var(--coinzy-expert-action-orange);
+  --color-expert-action-orange-hover: var(--coinzy-expert-action-orange-hover);
 
   --color-expert-badge-neutral: var(--coinzy-expert-badge-neutral);
   --color-expert-badge-neutral-text: var(--coinzy-expert-badge-neutral-text);

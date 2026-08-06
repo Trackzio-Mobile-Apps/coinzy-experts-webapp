@@ -19,7 +19,7 @@ export type InputGroupProps = {
 } & Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "className">;
 
 const inputShellClass =
-  "w-full rounded-lg border border-border px-3.5 py-2.5 text-sm text-text outline-none transition-[box-shadow,border-color] placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "w-full rounded-lg border border-input-border px-3.5 py-2.5 text-sm text-text outline-none transition-[box-shadow,border-color] placeholder:text-text-muted/70 focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 /**
  * Label + styled input for auth and forms.
