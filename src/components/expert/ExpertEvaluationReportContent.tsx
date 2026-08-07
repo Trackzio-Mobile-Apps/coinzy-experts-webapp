@@ -13,6 +13,7 @@ import {
 } from "@/lib/expert/evaluationReportLayoutStyles";
 import {
   EVALUATION_REPORT_BRAND,
+  EVALUATION_REPORT_LAYOUT_VERSION,
   EVALUATION_REPORT_SUBTITLE,
   EVALUATION_REPORT_TITLE,
   formatReportHeaderDate,
@@ -20,12 +21,15 @@ import {
   formatReportRequestLabel,
   reportGalleryMedia,
   type EvaluationReportDisplay,
+  type EvaluationReportLayoutVersion,
   type EvaluationReportSection,
 } from "@/lib/expert/evaluationReportView";
 import type { RequestMediaItem } from "@/lib/expert/types";
 
 type ExpertEvaluationReportContentProps = {
   report: EvaluationReportDisplay;
+  /** v1: coin + summary card. v2: expert profile + coin cards (PDF v2). */
+  version?: EvaluationReportLayoutVersion;
 };
 
 const t = EVALUATION_REPORT_TOKENS;
@@ -189,40 +193,56 @@ function SummaryRow({
   );
 }
 
+function CameraBadgeIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 8h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
 function CoinGalleryItem({
   item,
   index,
   isVideo,
+  variant = "default",
 }: {
   item: RequestMediaItem;
   index: number;
   isVideo?: boolean;
+  variant?: "default" | "v1";
 }) {
   const src = item.kind === "image" ? item.src : item.poster;
-  const size = t.hero.coinImageSizePx;
-  const overlap = index === 0 ? 0 : -t.hero.coinImageOverlapPx;
+  const overlap =
+    index === 0
+      ? 0
+      : -(variant === "v1"
+          ? t.hero.v1CoinImageOverlapPx
+          : t.hero.coinImageOverlapPx);
 
   return (
     <div
-      className="relative shrink-0 overflow-hidden rounded-full border-2 border-white bg-input-bg shadow-sm"
+      className="eval-report-coin-gallery-item"
       style={{
-        width: size,
-        height: size,
         marginLeft: overlap,
         zIndex: 10 - index,
       }}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element -- user-uploaded remote media URL
-        <img src={src} alt={item.alt} className="h-full w-full object-cover" loading="lazy" />
+        <img src={src} alt={item.alt} loading="lazy" />
       ) : (
-        <span className="flex h-full w-full items-center justify-center bg-neutral-900 text-[10px] font-semibold text-white">
-          Video
-        </span>
+        <span className="eval-report-coin-gallery-fallback">Video</span>
       )}
       {isVideo ? (
-        <span className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/70 text-[8px] text-white">
-          ▶
+        <span className="eval-report-coin-video-badge">
+          <CameraBadgeIcon />
         </span>
       ) : null}
     </div>
@@ -298,22 +318,129 @@ function ReportHeader({
       <div className="eval-report-header-right">
         <h1 className="eval-report-report-title">{EVALUATION_REPORT_TITLE}</h1>
         <p className="eval-report-report-meta">
-          Request ID: {requestLabel} | Date: {submittedDate}
+          Request ID:{" "}
+          <strong className="eval-report-meta-value">{requestLabel}</strong>
+          {" | "}
+          Date:{" "}
+          <strong className="eval-report-meta-value">{submittedDate}</strong>
         </p>
       </div>
     </header>
   );
 }
 
-function ReportHeroSection({ report }: { report: EvaluationReportDisplay }) {
-  const gallery = reportGalleryMedia(report.media);
-  const videoItems = report.media.filter((item) => item.kind === "video");
-  const rarity = report.hero.rarity;
-  const showRarityBadge = rarity !== "—";
+function CoinGallery({
+  media,
+  variant = "default",
+}: {
+  media: RequestMediaItem[];
+  variant?: "default" | "v1";
+}) {
+  const gallery = reportGalleryMedia(media);
+  const videoItems = media.filter((item) => item.kind === "video");
+  if (gallery.length === 0 && videoItems.length === 0) return null;
+
+  return (
+    <div className="eval-report-coin-gallery">
+      {gallery.map((item, index) => (
+        <CoinGalleryItem
+          key={`${item.src}-${index}`}
+          item={item}
+          index={index}
+          variant={variant}
+        />
+      ))}
+      {videoItems.slice(0, 1).map((item, index) => (
+        <CoinGalleryItem
+          key={`video-${item.src}`}
+          item={item}
+          index={gallery.length + index}
+          isVideo
+          variant={variant}
+        />
+      ))}
+    </div>
+  );
+}
+
+function HeroSummaryBox({
+  report,
+  className = "",
+}: {
+  report: EvaluationReportDisplay;
+  className?: string;
+}) {
   const summaryTheme = authenticitySummaryTheme(
     authenticityTone(report.hero.authenticity),
   );
+  const labelColor = className.includes("--v1")
+    ? t.colors.heroV1SummaryLabel
+    : summaryTheme.labelColor;
 
+  return (
+    <div
+      className={`eval-report-summary-box ${className}`.trim()}
+      style={{ backgroundColor: summaryTheme.boxBg }}
+    >
+      <SummaryRow
+        icon={<ShieldIcon />}
+        label="Authenticity"
+        value={report.hero.authenticity}
+        accentColor={summaryTheme.accentColor}
+        labelColor={labelColor}
+      />
+      <SummaryRow
+        icon={<StarCircleIcon />}
+        label="Condition"
+        value={report.hero.condition}
+        accentColor={summaryTheme.accentColor}
+        labelColor={labelColor}
+      />
+      <SummaryRow
+        icon={<ValueCoinsIcon />}
+        label="Est. Value"
+        value={report.hero.estimatedValue}
+        accentColor={summaryTheme.accentColor}
+        labelColor={labelColor}
+      />
+    </div>
+  );
+}
+
+function CoinTitleHeader({ report }: { report: EvaluationReportDisplay }) {
+  const rarity = report.hero.rarity;
+  const showRarityBadge = rarity !== "—";
+
+  return (
+    <div className="eval-report-coin-header">
+      <h2 className="eval-report-coin-title">{report.hero.coinTitle}</h2>
+      {showRarityBadge ? (
+        <span className="eval-report-rarity-badge">{rarity}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function ReportHeroSectionV1({ report }: { report: EvaluationReportDisplay }) {
+  return (
+    <section className="eval-report-hero-card eval-report-hero-card--v1">
+      <div className="eval-report-hero-v1-inner">
+        <div className="eval-report-hero-v1-coin">
+          <h2 className="eval-report-coin-title eval-report-coin-title--v1">
+            {report.hero.coinTitle}
+          </h2>
+          <CoinGallery media={report.media} variant="v1" />
+        </div>
+        <HeroSummaryBox
+          report={report}
+          className="eval-report-summary-box--v1"
+        />
+      </div>
+    </section>
+  );
+}
+
+function ReportHeroSectionV2({ report }: { report: EvaluationReportDisplay }) {
   return (
     <div className="eval-report-hero-grid">
       <section className="eval-report-hero-card">
@@ -375,55 +502,9 @@ function ReportHeroSection({ report }: { report: EvaluationReportDisplay }) {
       </section>
 
       <section className="eval-report-hero-card">
-        <div className="eval-report-coin-header">
-          <h2 className="eval-report-coin-title">{report.hero.coinTitle}</h2>
-          {showRarityBadge ? (
-            <span className="eval-report-rarity-badge">{rarity}</span>
-          ) : null}
-        </div>
-
-        {gallery.length > 0 || videoItems.length > 0 ? (
-          <div className="eval-report-coin-gallery">
-            {gallery.map((item, index) => (
-              <CoinGalleryItem key={`${item.src}-${index}`} item={item} index={index} />
-            ))}
-            {videoItems.slice(0, 1).map((item, index) => (
-              <CoinGalleryItem
-                key={`video-${item.src}`}
-                item={item}
-                index={gallery.length + index}
-                isVideo
-              />
-            ))}
-          </div>
-        ) : null}
-
-        <div
-          className="eval-report-summary-box"
-          style={{ backgroundColor: summaryTheme.boxBg }}
-        >
-          <SummaryRow
-            icon={<ShieldIcon />}
-            label="Authenticity"
-            value={report.hero.authenticity}
-            accentColor={summaryTheme.accentColor}
-            labelColor={summaryTheme.labelColor}
-          />
-          <SummaryRow
-            icon={<StarCircleIcon />}
-            label="Condition"
-            value={report.hero.condition}
-            accentColor={summaryTheme.accentColor}
-            labelColor={summaryTheme.labelColor}
-          />
-          <SummaryRow
-            icon={<ValueCoinsIcon />}
-            label="Est. Value"
-            value={report.hero.estimatedValue}
-            accentColor={summaryTheme.accentColor}
-            labelColor={summaryTheme.labelColor}
-          />
-        </div>
+        <CoinTitleHeader report={report} />
+        <CoinGallery media={report.media} />
+        <HeroSummaryBox report={report} />
       </section>
     </div>
   );
@@ -520,31 +601,17 @@ function ReportAssessmentSection({ report }: { report: EvaluationReportDisplay }
   );
 }
 
-function ReportFooter({ report }: { report: EvaluationReportDisplay }) {
-  return (
-    <footer className="eval-report-footer">
-      <div>
-        <p>Certified System Watermark</p>
-        <p style={{ marginTop: 6 }}>Generated by Coinzy Expert Evaluation System</p>
-      </div>
-      {report.expert ? (
-        <div className="eval-report-footer-right">
-          <p className="eval-report-footer-name">{report.expert.fullName}</p>
-          <p className="eval-report-footer-role">Expert Numismatist</p>
-        </div>
-      ) : null}
-    </footer>
-  );
-}
-
 export function ExpertEvaluationReportContent({
   report,
+  version = EVALUATION_REPORT_LAYOUT_VERSION,
 }: ExpertEvaluationReportContentProps) {
   const requestLabel = formatReportRequestLabel(
     report.requestDisplayId,
     report.requestId,
   );
   const submittedDate = formatReportHeaderDate(report.submittedAt);
+  const HeroSection =
+    version === "v2" ? ReportHeroSectionV2 : ReportHeroSectionV1;
 
   return (
     <>
@@ -562,8 +629,9 @@ export function ExpertEvaluationReportContent({
             requestLabel={requestLabel}
             submittedDate={submittedDate}
           />
-          <ReportHeroSection report={report} />
+          <HeroSection report={report} />
           <ReportPageOneSections report={report} />
+          <ReportDesignSection report={report} />
         </div>
       </ReportPageShell>
 
@@ -573,9 +641,7 @@ export function ExpertEvaluationReportContent({
             requestLabel={requestLabel}
             submittedDate={submittedDate}
           />
-          <ReportDesignSection report={report} />
           <ReportAssessmentSection report={report} />
-          <ReportFooter report={report} />
         </div>
       </ReportPageShell>
     </div>

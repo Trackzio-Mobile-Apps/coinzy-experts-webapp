@@ -15,12 +15,14 @@ import {
 import type { EvaluationReportDisplay } from "@/lib/expert/evaluationReportView";
 import {
   EVALUATION_REPORT_BRAND,
+  EVALUATION_REPORT_LAYOUT_VERSION,
   EVALUATION_REPORT_SUBTITLE,
   EVALUATION_REPORT_TITLE,
   formatReportHeaderDate,
   formatReportRating,
   formatReportRequestLabel,
   reportGalleryMedia,
+  type EvaluationReportLayoutVersion,
   type EvaluationReportSection,
 } from "@/lib/expert/evaluationReportView";
 import type { RequestMediaItem } from "@/lib/expert/types";
@@ -234,16 +236,20 @@ function coinGalleryItemHtml(
   item: RequestMediaItem,
   index: number,
   resolveMediaUrl: (url: string) => string,
-  isVideo?: boolean,
+  opts?: { isVideo?: boolean; variant?: "default" | "v1" },
 ): string {
+  const isVideo = opts?.isVideo ?? false;
+  const variant = opts?.variant ?? "default";
   const src = item.kind === "image" ? item.src : item.poster?.trim() || "";
   const zIndex = 10 - index;
-  const marginLeft = index === 0 ? 0 : -t.hero.coinImageOverlapPx;
+  const overlap =
+    variant === "v1" ? t.hero.v1CoinImageOverlapPx : t.hero.coinImageOverlapPx;
+  const marginLeft = index === 0 ? 0 : -overlap;
   const content = src
     ? `<img src="${escapeHtml(resolveMediaUrl(src))}" alt="${escapeHtml(item.alt)}" loading="eager" crossorigin="anonymous" />`
-    : `<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#111;color:#fff;font-size:10px;font-weight:600">Video</div>`;
+    : `<span class="eval-report-coin-gallery-fallback">Video</span>`;
   const videoBadge = isVideo
-    ? `<span style="position:absolute;bottom:2px;right:2px;width:16px;height:16px;border-radius:999px;background:rgba(0,0,0,0.7);color:#fff;font-size:8px;display:flex;align-items:center;justify-content:center">▶</span>`
+    ? `<span class="eval-report-coin-video-badge">◉</span>`
     : "";
 
   return `<div class="eval-report-coin-gallery-item" style="z-index:${zIndex};margin-left:${marginLeft}px">${content}${videoBadge}</div>`;
@@ -264,42 +270,92 @@ function summaryRowHtml(
     </div>`;
 }
 
-function reportCoinCardHtml(
+function reportCoinDetailsHtml(
   report: EvaluationReportDisplay,
   resolveMediaUrl: (url: string) => string,
+  variant: "default" | "v1" = "default",
 ): string {
   const gallery = reportGalleryMedia(report.media);
   const videoItems = report.media.filter((item) => item.kind === "video");
   const galleryHtml = [
     ...gallery.map((item, index) =>
-      coinGalleryItemHtml(item, index, resolveMediaUrl),
+      coinGalleryItemHtml(item, index, resolveMediaUrl, { variant }),
     ),
     ...videoItems
       .slice(0, 1)
       .map((item, index) =>
-        coinGalleryItemHtml(item, gallery.length + index, resolveMediaUrl, true),
+        coinGalleryItemHtml(item, gallery.length + index, resolveMediaUrl, {
+          isVideo: true,
+          variant,
+        }),
       ),
   ].join("");
 
-  const rarityBadge =
-    report.hero.rarity !== "—"
-      ? `<span class="eval-report-rarity-badge">${escapeHtml(report.hero.rarity)}</span>`
-      : "";
+  const titleHtml =
+    variant === "v1"
+      ? `<h2 class="eval-report-coin-title eval-report-coin-title--v1">${escapeHtml(report.hero.coinTitle)}</h2>`
+      : `<div class="eval-report-coin-header">
+          <h2 class="eval-report-coin-title">${escapeHtml(report.hero.coinTitle)}</h2>
+          ${
+            report.hero.rarity !== "—"
+              ? `<span class="eval-report-rarity-badge">${escapeHtml(report.hero.rarity)}</span>`
+              : ""
+          }
+        </div>`;
 
+  return `
+    ${titleHtml}
+    ${galleryHtml ? `<div class="eval-report-coin-gallery">${galleryHtml}</div>` : ""}`;
+}
+
+function reportHeroSummaryHtml(
+  report: EvaluationReportDisplay,
+  extraClass = "",
+): string {
   const summaryTheme = authenticitySummaryTheme(
     authenticityTone(report.hero.authenticity),
   );
+  const isV1 = extraClass.includes("--v1");
+  const labelColor = isV1 ? c.heroV1SummaryLabel : summaryTheme.labelColor;
+  const className = `eval-report-summary-box${extraClass ? ` ${extraClass}` : ""}`;
 
   return `
-    <div class="eval-report-coin-header">
-      <h2 class="eval-report-coin-title">${escapeHtml(report.hero.coinTitle)}</h2>
-      ${rarityBadge}
-    </div>
-    ${galleryHtml ? `<div class="eval-report-coin-gallery">${galleryHtml}</div>` : ""}
-    <div class="eval-report-summary-box" style="background:${summaryTheme.boxBg}">
-      ${summaryRowHtml("🛡", "Authenticity", report.hero.authenticity, summaryTheme.accentColor, summaryTheme.labelColor)}
-      ${summaryRowHtml("★", "Condition", report.hero.condition, summaryTheme.accentColor, summaryTheme.labelColor)}
-      ${summaryRowHtml("◎", "Est. Value", report.hero.estimatedValue, summaryTheme.accentColor, summaryTheme.labelColor)}
+    <div class="${className}" style="background:${summaryTheme.boxBg}">
+      ${summaryRowHtml("🛡", "Authenticity", report.hero.authenticity, summaryTheme.accentColor, labelColor)}
+      ${summaryRowHtml("★", "Condition", report.hero.condition, summaryTheme.accentColor, labelColor)}
+      ${summaryRowHtml("◎", "Est. Value", report.hero.estimatedValue, summaryTheme.accentColor, labelColor)}
+    </div>`;
+}
+
+function reportHeroV1Html(
+  report: EvaluationReportDisplay,
+  resolveMediaUrl: (url: string) => string,
+): string {
+  return `
+    <section class="eval-report-hero-card eval-report-hero-card--v1">
+      <div class="eval-report-hero-v1-inner">
+        <div class="eval-report-hero-v1-coin">
+          ${reportCoinDetailsHtml(report, resolveMediaUrl, "v1")}
+        </div>
+        ${reportHeroSummaryHtml(report, "eval-report-summary-box--v1")}
+      </div>
+    </section>`;
+}
+
+function reportHeroV2Html(
+  report: EvaluationReportDisplay,
+  resolveMediaUrl: (url: string) => string,
+): string {
+  return `
+    <div class="eval-report-hero-grid">
+      <section class="eval-report-hero-card">
+        <p class="eval-report-hero-kicker">Evaluated by Expert</p>
+        ${reportExpertHtml(report, resolveMediaUrl)}
+      </section>
+      <section class="eval-report-hero-card">
+        ${reportCoinDetailsHtml(report, resolveMediaUrl)}
+        ${reportHeroSummaryHtml(report)}
+      </section>
     </div>`;
 }
 
@@ -358,30 +414,49 @@ function reportHeaderHtml(
       </div>
       <div class="eval-report-header-right">
         <h1 class="eval-report-report-title">${escapeHtml(EVALUATION_REPORT_TITLE)}</h1>
-        <p class="eval-report-report-meta">Request ID: ${escapeHtml(requestLabel)} | Date: ${escapeHtml(submittedDate)}</p>
+        <p class="eval-report-report-meta">Request ID: <strong class="eval-report-meta-value">${escapeHtml(requestLabel)}</strong> | Date: <strong class="eval-report-meta-value">${escapeHtml(submittedDate)}</strong></p>
       </div>
     </header>`;
+}
+
+function reportDesignHtml(report: EvaluationReportDisplay): string {
+  return `
+    <div class="eval-report-design-block">
+      ${sectionHeadingHtml("✎", "Design Details")}
+      <div class="eval-report-design-card">
+        <div class="eval-report-field-block">
+          <p class="eval-report-field-label">Front (Obverse)</p>
+          <p class="eval-report-field-value">${escapeHtml(report.designDetails.obverse)}</p>
+        </div>
+        <div class="eval-report-field-block">
+          <p class="eval-report-field-label">Back (Reverse)</p>
+          <p class="eval-report-field-value">${escapeHtml(report.designDetails.reverse)}</p>
+        </div>
+        <div class="eval-report-field-block">
+          <p class="eval-report-field-label">History</p>
+          <p class="eval-report-field-value">${escapeHtml(report.designDetails.history)}</p>
+        </div>
+      </div>
+    </div>`;
 }
 
 function reportPage1Html(
   report: EvaluationReportDisplay,
   logoSrc: string,
   resolveMediaUrl: (url: string) => string,
+  version: EvaluationReportLayoutVersion = EVALUATION_REPORT_LAYOUT_VERSION,
 ): string {
+  const heroHtml =
+    version === "v2"
+      ? reportHeroV2Html(report, resolveMediaUrl)
+      : reportHeroV1Html(report, resolveMediaUrl);
+
   return `
     <section class="eval-report-page" data-report-export-page="1">
       <div class="eval-report-page-body">
         ${reportHeaderHtml(report, logoSrc)}
 
-        <div class="eval-report-hero-grid">
-          <section class="eval-report-hero-card">
-            <p class="eval-report-hero-kicker">Evaluated by Expert</p>
-            ${reportExpertHtml(report, resolveMediaUrl)}
-          </section>
-          <section class="eval-report-hero-card">
-            ${reportCoinCardHtml(report, resolveMediaUrl)}
-          </section>
-        </div>
+        ${heroHtml}
 
         <div class="eval-report-sections-grid">
           <div>
@@ -399,6 +474,8 @@ function reportPage1Html(
             </div>
           </div>
         </div>
+
+        ${reportDesignHtml(report)}
       </div>
     </section>`;
 }
@@ -407,48 +484,15 @@ function reportPage2Html(
   report: EvaluationReportDisplay,
   logoSrc: string,
 ): string {
-  const footerExpert = report.expert
-    ? `<div class="eval-report-footer-right">
-        <p class="eval-report-footer-name">${escapeHtml(report.expert.fullName)}</p>
-        <p class="eval-report-footer-role">Expert Numismatist</p>
-      </div>`
-    : "";
-
   return `
     <section class="eval-report-page" data-report-export-page="2">
       <div class="eval-report-page-body eval-report-page-body--page-two">
         ${reportHeaderHtml(report, logoSrc)}
 
-        <div class="eval-report-design-block">
-          ${sectionHeadingHtml("✎", "Design Details")}
-          <div class="eval-report-design-card">
-            <div class="eval-report-field-block">
-              <p class="eval-report-field-label">Front (Obverse)</p>
-              <p class="eval-report-field-value">${escapeHtml(report.designDetails.obverse)}</p>
-            </div>
-            <div class="eval-report-field-block">
-              <p class="eval-report-field-label">Back (Reverse)</p>
-              <p class="eval-report-field-value">${escapeHtml(report.designDetails.reverse)}</p>
-            </div>
-            <div class="eval-report-field-block">
-              <p class="eval-report-field-label">History</p>
-              <p class="eval-report-field-value">${escapeHtml(report.designDetails.history)}</p>
-            </div>
-          </div>
-        </div>
-
         <div class="eval-report-assessment-block">
           ${sectionHeadingHtml("👤", "Expert Assessment")}
           ${reportAssessmentHtml(report)}
         </div>
-
-        <footer class="eval-report-footer">
-          <div>
-            <p>Certified System Watermark</p>
-            <p style="margin-top:6px">Generated by Coinzy Expert Evaluation System</p>
-          </div>
-          ${footerExpert}
-        </footer>
       </div>
     </section>`;
 }
@@ -475,11 +519,13 @@ export function buildEvaluationReportPrintHtml(
   options?: {
     logoDataUrl?: string | null;
     resolveMediaUrl?: (url: string) => string;
+    version?: EvaluationReportLayoutVersion;
   },
 ): string {
   const logoSrc = options?.logoDataUrl ?? REPORT_LOGO_PATH;
   const resolveMediaUrl =
     options?.resolveMediaUrl ?? ((url: string) => reportMediaFetchUrl(url));
+  const version = options?.version ?? EVALUATION_REPORT_LAYOUT_VERSION;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -492,7 +538,7 @@ export function buildEvaluationReportPrintHtml(
 </head>
 <body>
   <div class="report-pages">
-    ${reportPage1Html(report, logoSrc, resolveMediaUrl)}
+    ${reportPage1Html(report, logoSrc, resolveMediaUrl, version)}
     ${reportPage2Html(report, logoSrc)}
   </div>
 </body>
@@ -995,10 +1041,12 @@ async function exportReportViaIframeHtml(
   report: EvaluationReportDisplay,
   resolveMediaUrl: (url: string) => string,
   logoDataUrl?: string | null,
+  version: EvaluationReportLayoutVersion = EVALUATION_REPORT_LAYOUT_VERSION,
 ): Promise<void> {
   const html = buildEvaluationReportPrintHtml(report, {
     logoDataUrl,
     resolveMediaUrl,
+    version,
   });
   const { iframe, pages, cleanup } = mountReportExportFrame(html);
   const frameWindow = iframe.contentWindow;
@@ -1028,6 +1076,7 @@ async function exportReportViaIframeHtml(
 
 export type EvaluationReportPdfOptions = {
   previewRoot?: HTMLElement | null;
+  version?: EvaluationReportLayoutVersion;
 };
 
 /** Download a `.pdf` file matching the modal report layout. */
@@ -1066,7 +1115,12 @@ export async function downloadEvaluationReportPdf(
     }
   }
 
-  await exportReportViaIframeHtml(report, resolveMediaUrl, logoDataUrl);
+  await exportReportViaIframeHtml(
+    report,
+    resolveMediaUrl,
+    logoDataUrl,
+    options?.version ?? EVALUATION_REPORT_LAYOUT_VERSION,
+  );
 }
 
 /** Opens print dialog with report-only HTML (fallback). */

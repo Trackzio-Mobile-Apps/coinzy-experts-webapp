@@ -357,27 +357,8 @@ export function isOfferEligibleForQueue(
   return !isDeadlineExceeded(deadlineAt, nowMs);
 }
 
-function isRequestTimeExtended(request: BackendRequest): boolean {
-  const deadlineIso = normalizeIsoDate(request.deadlineAt);
-  const windowIso = normalizeIsoDate(request.firstAcceptanceWindowEndsAt);
-  if (!deadlineIso || !windowIso) return false;
-
-  const now = Date.now();
-  const deadlineMs = new Date(deadlineIso).getTime();
-  const windowMs = new Date(windowIso).getTime();
-
-  // Past the first acceptance window, but a later deadline is still active.
-  return windowMs < now && deadlineMs > now && deadlineMs > windowMs;
-}
-
-function resolveQueueRowVariant(
-  request: BackendRequest,
-  status: QueueItemStatus,
-): QueueRowVariant {
-  if (status === "pending_review") return "pending_review";
-  if (isDeadlineExceeded(request.deadlineAt)) return "in_progress";
-  if (isRequestTimeExtended(request)) return "time_extended";
-  return "in_progress";
+function resolveQueueRowVariant(status: QueueItemStatus): QueueRowVariant {
+  return status === "pending_review" ? "pending_review" : "in_progress";
 }
 
 function resolveOfferQueueDeadline(offer: BackendOffer): {
@@ -414,7 +395,7 @@ export function mapOfferToQueueItem(offer: BackendOffer): QueueListItem {
     offerId: normalizeMongoId(offer._id),
     submittedDisplay: formatSubmitted(request.createdAt),
     status,
-    variant: resolveQueueRowVariant(request, status),
+    variant: resolveQueueRowVariant(status),
     deadlineDays: daysUntil(deadlineAt),
     deadlineAt,
     deadlineExpired,
@@ -433,7 +414,7 @@ export function mapAcceptedRequestToQueueItem(
     displayId: resolveDisplayId(request),
     submittedDisplay: formatSubmitted(request.acceptedAt ?? request.createdAt),
     status,
-    variant: resolveQueueRowVariant(request, status),
+    variant: resolveQueueRowVariant(status),
     deadlineDays: daysUntil(deadlineAt),
     deadlineAt,
     deadlineExpired: isDeadlineExceeded(deadlineAt),
@@ -650,5 +631,5 @@ export function buildEvaluationDetail(opts: {
 }
 
 export function queueStatusLabel(status: QueueItemStatus): string {
-  return status === "in_progress" ? "In progress" : "Pending review";
+  return status === "in_progress" ? "In progress" : "In queue";
 }

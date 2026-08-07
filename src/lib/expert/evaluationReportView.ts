@@ -20,6 +20,11 @@ export const EVALUATION_REPORT_BRAND = "Coinzy AI";
 export const EVALUATION_REPORT_SUBTITLE = "Expert Coin Evaluation";
 export const EVALUATION_REPORT_TITLE = "Evaluation Report";
 
+/** v1: compact coin + summary hero. v2: expert profile + coin cards. */
+export type EvaluationReportLayoutVersion = "v1" | "v2";
+export const EVALUATION_REPORT_LAYOUT_VERSION: EvaluationReportLayoutVersion =
+  "v1";
+
 export type EvaluationReportFieldRow = {
   label: string;
   value: string;

@@ -23,7 +23,7 @@ export function evaluationReportLayoutCss(): string {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 40px;
+      gap: 24px;
       width: 100%;
     }
     .eval-report-page {
@@ -48,6 +48,16 @@ export function evaluationReportLayoutCss(): string {
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
+    .eval-report-page[data-report-export-page="1"] {
+      height: ${p.page1HeightPx}px;
+      min-height: ${p.page1HeightPx}px;
+      max-height: ${p.page1HeightPx}px;
+    }
+    .eval-report-page[data-report-export-page="2"] {
+      height: ${p.page2HeightPx}px;
+      min-height: ${p.page2HeightPx}px;
+      max-height: ${p.page2HeightPx}px;
+    }
     .eval-report-page--capture {
       border-radius: 0;
       box-shadow: none;
@@ -69,11 +79,12 @@ export function evaluationReportLayoutCss(): string {
       flex: 1 1 auto;
       display: flex;
       flex-direction: column;
+      gap: ${t.page.rowGapPx}px;
       min-height: 0;
       width: 100%;
     }
     .eval-report-page-body--page-two {
-      gap: 36px;
+      gap: ${t.page.rowGapPx}px;
     }
     .eval-report-page-body--page-two .eval-report-design-block,
     .eval-report-page-body--page-two .eval-report-assessment-block {
@@ -84,11 +95,12 @@ export function evaluationReportLayoutCss(): string {
       flex-direction: row;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 24px;
+      gap: 16px;
       border-bottom: 1px solid ${c.border};
-      padding-bottom: ${t.header.paddingBottomPx}px;
+      padding: ${t.header.paddingTopPx}px 0 ${t.header.paddingBottomPx}px;
       flex-shrink: 0;
       width: 100%;
+      box-sizing: border-box;
     }
     .eval-report-header-brand {
       display: flex;
@@ -108,17 +120,17 @@ export function evaluationReportLayoutCss(): string {
     }
     .eval-report-brand-name {
       margin: 0;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: ${c.text};
     }
     .eval-report-brand-subtitle {
-      margin: 6px 0 0;
-      font-size: 11px;
+      margin: 4px 0 0;
+      font-size: 10px;
       font-weight: 600;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: ${c.textMuted};
     }
@@ -137,17 +149,81 @@ export function evaluationReportLayoutCss(): string {
       line-height: 1.2;
     }
     .eval-report-report-meta {
-      margin: 10px 0 0;
+      margin: 8px 0 0;
       font-size: ${t.header.metaSizePx}px;
       color: ${c.textMuted};
-      line-height: 1.5;
+      line-height: 1.45;
+    }
+    .eval-report-meta-value {
+      font-weight: 700;
+      color: ${c.text};
     }
     .eval-report-hero-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: ${t.hero.gapPx}px;
-      margin-top: ${t.hero.marginTopPx}px;
+      margin-top: 0;
       width: 100%;
+    }
+    .eval-report-hero-card--v1 {
+      margin-top: 0;
+      background: ${c.heroV1CardBg};
+      padding: ${t.hero.cardPaddingPx}px;
+    }
+    .eval-report-hero-v1-inner {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 42%);
+      gap: ${t.hero.gapPx}px;
+      align-items: center;
+      width: 100%;
+    }
+    .eval-report-hero-v1-coin {
+      min-width: 0;
+    }
+    .eval-report-coin-title--v1 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: ${c.text};
+    }
+    .eval-report-hero-v1-coin .eval-report-coin-gallery {
+      margin-top: 12px;
+    }
+    .eval-report-hero-v1-coin .eval-report-coin-gallery-item {
+      width: ${t.hero.v1CoinImageSizePx}px;
+      height: ${t.hero.v1CoinImageSizePx}px;
+    }
+    .eval-report-hero-v1-coin .eval-report-coin-gallery-item + .eval-report-coin-gallery-item {
+      margin-left: -${t.hero.v1CoinImageOverlapPx}px;
+    }
+    .eval-report-coin-video-badge {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #fff;
+      color: ${c.textMuted};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+    }
+    .eval-report-summary-box--v1 {
+      margin-top: 0;
+      align-self: stretch;
+      border-radius: 8px;
+      padding: 12px 14px;
+      gap: 10px;
+    }
+    .eval-report-summary-box--v1 .eval-report-summary-label {
+      color: ${c.heroV1SummaryLabel};
+      font-weight: 500;
+    }
+    .eval-report-summary-box--v1 .eval-report-summary-value {
+      font-weight: 700;
     }
     .eval-report-hero-card {
       border: ${t.hero.cardBorderPx}px solid ${c.border};
@@ -249,30 +325,40 @@ export function evaluationReportLayoutCss(): string {
       line-height: 1.2;
     }
     .eval-report-summary-box {
-      margin-top: 20px;
+      margin-top: 16px;
       border-radius: 8px;
-      padding: 8px 16px;
+      padding: 10px 14px;
       display: grid;
-      gap: 12px;
+      gap: 10px;
       box-sizing: border-box;
     }
     .eval-report-sections-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: ${t.section.gapPx}px;
-      margin-top: ${t.section.marginTopPx}px;
+      margin-top: 0;
       width: 100%;
+      align-items: stretch;
+    }
+    .eval-report-sections-grid > div:first-child {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .eval-report-sections-grid > div:first-child .eval-report-kv-card {
+      flex: 1 1 auto;
     }
     .eval-report-sections-right {
       display: flex;
       flex-direction: column;
       gap: ${t.section.gapPx}px;
+      height: 100%;
     }
     .eval-report-section-heading {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin: 0 0 16px;
+      gap: 10px;
+      margin: 0 0 ${t.section.headingGapPx}px;
     }
     .eval-report-section-icon {
       width: ${t.section.iconSizePx}px;
@@ -290,7 +376,7 @@ export function evaluationReportLayoutCss(): string {
     }
     .eval-report-section-title {
       margin: 0;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 600;
       color: ${c.primary};
     }
@@ -304,8 +390,8 @@ export function evaluationReportLayoutCss(): string {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: start;
-      column-gap: 24px;
-      font-size: 14px;
+      column-gap: 12px;
+      font-size: 12px;
       padding: ${t.section.rowPaddingYPx}px ${t.section.rowPaddingXPx}px;
       border-bottom: 1px solid ${c.border};
     }
@@ -316,7 +402,7 @@ export function evaluationReportLayoutCss(): string {
       color: ${c.textMuted};
     }
     .eval-report-kv-value {
-      max-width: 220px;
+      max-width: 160px;
       text-align: right;
       font-weight: 600;
       white-space: pre-wrap;
@@ -325,8 +411,8 @@ export function evaluationReportLayoutCss(): string {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
-      column-gap: 12px;
-      font-size: 14px;
+      column-gap: 8px;
+      font-size: 12px;
     }
     .eval-report-summary-label {
       min-width: 0;
@@ -367,7 +453,7 @@ export function evaluationReportLayoutCss(): string {
     .eval-report-coin-gallery {
       display: flex;
       align-items: center;
-      margin-top: 18px;
+      margin-top: 12px;
     }
     .eval-report-coin-gallery-item {
       width: ${t.hero.coinImageSizePx}px;
@@ -388,6 +474,17 @@ export function evaluationReportLayoutCss(): string {
       height: 100%;
       object-fit: cover;
       display: block;
+    }
+    .eval-report-coin-gallery-fallback {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      background: #111;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
     }
     .eval-report-hero-avatar {
       width: ${t.hero.avatarSizePx}px;
@@ -414,7 +511,7 @@ export function evaluationReportLayoutCss(): string {
       text-rendering: geometricPrecision;
     }
     .eval-report-design-block {
-      margin-top: ${t.section.marginTopPx}px;
+      margin-top: 0;
       flex-shrink: 0;
       width: 100%;
     }
@@ -422,9 +519,9 @@ export function evaluationReportLayoutCss(): string {
       border: 1px solid ${c.border};
       border-radius: ${t.section.cardRadiusPx}px;
       background: ${c.surface};
-      padding: 24px;
+      padding: ${t.hero.cardPaddingPx}px;
       display: grid;
-      gap: 24px;
+      gap: ${t.section.blockGapPx}px;
     }
     .eval-report-field-block {
       display: block;
@@ -432,28 +529,28 @@ export function evaluationReportLayoutCss(): string {
     }
     .eval-report-field-label {
       margin: 0;
-      font-size: 12px;
-      line-height: 1.45;
+      font-size: 11px;
+      line-height: 1.4;
       color: ${c.labelMuted};
     }
     .eval-report-field-value {
-      margin: 10px 0 0;
-      font-size: 14px;
+      margin: 6px 0 0;
+      font-size: 13px;
       font-weight: 700;
-      line-height: 1.55;
+      line-height: 1.45;
       color: ${c.text};
       white-space: pre-wrap;
     }
     .eval-report-auth-note {
-      margin: 18px 0 0;
-      font-size: 14px;
+      margin: 12px 0 0;
+      font-size: 13px;
       font-weight: 600;
-      line-height: 1.55;
+      line-height: 1.45;
       color: ${c.text};
       white-space: pre-wrap;
     }
     .eval-report-assessment-block {
-      margin-top: ${t.section.marginTopPx}px;
+      margin-top: 0;
       flex-shrink: 0;
       width: 100%;
     }
@@ -461,15 +558,15 @@ export function evaluationReportLayoutCss(): string {
       border: 1px solid ${c.border};
       border-radius: ${t.section.cardRadiusPx}px;
       background: ${c.surface};
-      padding: 28px;
+      padding: ${t.hero.cardPaddingPx}px;
       display: grid;
-      gap: 24px;
+      gap: ${t.section.blockGapPx}px;
       width: 100%;
       box-sizing: border-box;
     }
     .eval-report-auth-card {
-      border-radius: 10px;
-      padding: 20px;
+      border-radius: 8px;
+      padding: 14px;
       width: 100%;
       box-sizing: border-box;
     }
@@ -497,8 +594,8 @@ export function evaluationReportLayoutCss(): string {
       justify-self: end;
     }
     .eval-report-condition-card {
-      border-radius: 10px;
-      padding: 20px;
+      border-radius: 8px;
+      padding: 14px;
       width: 100%;
       box-sizing: border-box;
     }
@@ -507,7 +604,7 @@ export function evaluationReportLayoutCss(): string {
       border-radius: 0;
     }
     .eval-report-recommendation {
-      padding: 8px 0 0;
+      padding: 0;
       width: 100%;
     }
     .eval-report-footer {
@@ -569,7 +666,7 @@ export function evaluationReportCaptureCss(): string {
       gap: 0 !important;
     }
     .eval-report-page--capture .eval-report-page-body--page-two > * + * {
-      margin-top: 36px !important;
+      margin-top: ${t.page.rowGapPx}px !important;
     }
     .eval-report-page--capture .eval-report-hero-grid,
     .eval-report-page--capture .eval-report-sections-grid {
@@ -582,6 +679,21 @@ export function evaluationReportCaptureCss(): string {
     .eval-report-page--capture .eval-report-sections-grid > * {
       flex: 1 1 0 !important;
       min-width: 0 !important;
+    }
+    .eval-report-page--capture .eval-report-hero-v1-inner {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      gap: ${t.hero.gapPx}px !important;
+    }
+    .eval-report-page--capture .eval-report-hero-v1-coin {
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+    }
+    .eval-report-page--capture .eval-report-summary-box--v1 {
+      flex: 0 0 42% !important;
+      max-width: 42% !important;
+      margin-top: 0 !important;
     }
     .eval-report-page--capture .eval-report-sections-right {
       display: block !important;
@@ -599,11 +711,11 @@ export function evaluationReportCaptureCss(): string {
       min-height: 0 !important;
     }
     .eval-report-page--capture .eval-report-summary-box > * + * {
-      margin-top: 16px !important;
+      margin-top: 10px !important;
     }
     .eval-report-page--capture .eval-report-design-card > * + *,
     .eval-report-page--capture .eval-report-assessment-card > * + * {
-      margin-top: 24px !important;
+      margin-top: ${t.section.blockGapPx}px !important;
     }
     .eval-report-page--capture .eval-report-auth-card,
     .eval-report-page--capture .eval-report-condition-card,
@@ -661,10 +773,10 @@ export function evaluationReportCaptureCss(): string {
       padding: 12px 0 !important;
     }
     .eval-report-page--capture .eval-report-field-value {
-      margin-top: 10px !important;
+      margin-top: 6px !important;
     }
     .eval-report-page--capture .eval-report-auth-note {
-      margin-top: 18px !important;
+      margin-top: 12px !important;
     }
     .eval-report-page--capture .eval-report-auth-badge,
     .eval-report-page--capture .eval-report-rarity-badge {
@@ -715,8 +827,8 @@ export function evaluationReportCaptureCss(): string {
     .eval-report-page--capture .eval-report-section-heading {
       display: flex !important;
       align-items: center !important;
-      gap: 12px !important;
-      margin-bottom: 16px !important;
+      gap: 10px !important;
+      margin-bottom: ${t.section.headingGapPx}px !important;
     }
     .eval-report-page--capture .eval-report-section-icon {
       display: inline-flex !important;

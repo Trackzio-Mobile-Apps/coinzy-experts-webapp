@@ -37,7 +37,7 @@ describe("buildQueueList deadline filtering", () => {
     expect(buildQueueList([], [request], nowMs)).toHaveLength(0);
   });
 
-  it("keeps time-extended accepted requests while the extended deadline is active", () => {
+  it("keeps accepted requests in queue as in progress until deadlineAt passes", () => {
     const request = {
       _id: "req1",
       displayId: "16",
@@ -49,7 +49,7 @@ describe("buildQueueList deadline filtering", () => {
     expect(isAcceptedRequestEligibleForQueue(request, nowMs)).toBe(true);
     const items = buildQueueList([], [request], nowMs);
     expect(items).toHaveLength(1);
-    expect(items[0]?.variant).toBe("time_extended");
+    expect(items[0]?.variant).toBe("in_progress");
   });
 
   it("keeps active offers and accepted requests with future deadlines", () => {
