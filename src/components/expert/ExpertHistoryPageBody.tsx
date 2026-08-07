@@ -13,6 +13,7 @@ import {
 import type { HistoryRow, HistorySummaryStats } from "@/lib/expert/types";
 import Link from "next/link";
 import { CertReportModal } from "@/components/expert/CertReportModal";
+import { ExpertPagination } from "@/components/expert/ExpertPagination";
 
 type ExpertHistoryPageBodyProps = {
   summary: HistorySummaryStats;
@@ -301,10 +302,13 @@ export function ExpertHistoryPageBody({
               <p className="text-sm text-text-muted">
                 Showing {from} to {to} of {totalItems} results
               </p>
-              <HistoryPagination
+              <ExpertPagination
                 page={page}
                 totalPages={totalPages}
-                period={period}
+                ariaLabel="History pagination"
+                previousLabel="< Previous"
+                nextLabel="Next >"
+                getPageHref={(p) => buildExpertHistoryHref({ page: p, period })}
               />
             </footer>
           </section>
@@ -440,66 +444,4 @@ function ActionButton({
     );
   }
   return <span className="text-xs text-text-muted">—</span>;
-}
-
-function HistoryPagination({
-  page,
-  totalPages,
-  period,
-}: {
-  page: number;
-  totalPages: number;
-  period: HistoryPeriodFilter;
-}) {
-  const safeTotal = Math.max(1, totalPages);
-  const current = Math.min(Math.max(1, page), safeTotal);
-  const pages = Array.from({ length: safeTotal }, (_, i) => i + 1);
-  const navBtnClass =
-    "inline-flex h-8 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text transition-colors hover:bg-input-bg";
-  const navBtnDisabledClass =
-    "inline-flex h-8 cursor-not-allowed items-center rounded-lg border border-border px-3 text-sm font-medium text-text-muted/50";
-
-  return (
-    <nav
-      className="flex flex-wrap items-center gap-1.5"
-      aria-label="History pagination"
-    >
-      {current <= 1 ? (
-        <span className={navBtnDisabledClass}>&lt; Previous</span>
-      ) : (
-        <Link
-          href={buildExpertHistoryHref({ page: current - 1, period })}
-          className={navBtnClass}
-        >
-          &lt; Previous
-        </Link>
-      )}
-
-      {pages.map((p) => (
-        <Link
-          key={`page-${p}-of-${safeTotal}`}
-          href={buildExpertHistoryHref({ page: p, period })}
-          aria-current={p === current ? "page" : undefined}
-          className={
-            p === current
-              ? "inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-primary px-2.5 text-sm font-semibold text-white"
-              : "inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2.5 text-sm font-medium text-text-muted transition-colors hover:bg-input-bg hover:text-text"
-          }
-        >
-          {p}
-        </Link>
-      ))}
-
-      {current >= safeTotal ? (
-        <span className={navBtnDisabledClass}>Next &gt;</span>
-      ) : (
-        <Link
-          href={buildExpertHistoryHref({ page: current + 1, period })}
-          className={navBtnClass}
-        >
-          Next &gt;
-        </Link>
-      )}
-    </nav>
-  );
 }

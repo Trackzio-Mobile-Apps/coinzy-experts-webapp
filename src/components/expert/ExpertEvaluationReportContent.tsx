@@ -285,7 +285,15 @@ function ReportPageShell({
   children: React.ReactNode;
 }) {
   return (
-    <section data-report-export-page={page} className="eval-report-page">
+    <section
+      data-report-export-page={page}
+      className="eval-report-page shrink-0"
+      style={{
+        width: t.page.maxWidthPx,
+        minWidth: t.page.maxWidthPx,
+        maxWidth: t.page.maxWidthPx,
+      }}
+    >
       {children}
     </section>
   );
@@ -317,13 +325,16 @@ function ReportHeader({
 
       <div className="eval-report-header-right">
         <h1 className="eval-report-report-title">{EVALUATION_REPORT_TITLE}</h1>
-        <p className="eval-report-report-meta">
-          Request ID:{" "}
-          <strong className="eval-report-meta-value">{requestLabel}</strong>
-          {" | "}
-          Date:{" "}
-          <strong className="eval-report-meta-value">{submittedDate}</strong>
-        </p>
+        <div className="eval-report-report-meta">
+          <p className="eval-report-meta-line">
+            Request ID:{" "}
+            <strong className="eval-report-meta-value">{requestLabel}</strong>
+          </p>
+          <p className="eval-report-meta-line">
+            Date:{" "}
+            <strong className="eval-report-meta-value">{submittedDate}</strong>
+          </p>
+        </div>
       </div>
     </header>
   );
@@ -587,12 +598,14 @@ function ReportAssessmentSection({ report }: { report: EvaluationReportDisplay }
           }
         >
           <p className="eval-report-field-label">Condition Grade</p>
-          <p className="eval-report-field-value">{report.assessment.condition}</p>
+          <p className="eval-report-field-value eval-report-field-value--grade">
+            {report.assessment.condition}
+          </p>
         </div>
 
         <div className="eval-report-recommendation eval-report-field-block">
           <p className="eval-report-field-label">Expert Recommendation</p>
-          <p className="eval-report-field-value">
+          <p className="eval-report-field-value eval-report-field-value--body">
             {report.assessment.recommendation}
           </p>
         </div>
@@ -622,7 +635,7 @@ export function ExpertEvaluationReportContent({
           __html: `${evaluationReportFontFaceCss()}${evaluationReportLayoutCss()}`,
         }}
       />
-      <div className="eval-report-pages-stack text-text">
+      <div className="eval-report-pages-stack eval-report-pages-stack--preview text-text">
       <ReportPageShell page={1}>
         <div className="eval-report-page-body">
           <ReportHeader

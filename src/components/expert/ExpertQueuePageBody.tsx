@@ -15,6 +15,7 @@ import { ExpertEmptyState } from "@/components/expert/ExpertEmptyState";
 import { ExpertScrollIllustration } from "@/components/expert/ExpertScrollIllustration";
 import { ExpertQueueListSkeleton } from "@/components/expert/ExpertSkeleton";
 import { QueueCoinPreview } from "@/components/expert/QueueCoinPreview";
+import { ExpertPagination } from "@/components/expert/ExpertPagination";
 import Link from "next/link";
 
 type ExpertQueuePageBodyProps = {
@@ -197,74 +198,16 @@ export function ExpertQueuePageBody({
               <p className="text-sm text-text-muted">
                 Showing {from} to {to} of {totalItems} requests
               </p>
-              <QueuePagination page={page} totalPages={totalPages} />
+              <ExpertPagination
+                page={page}
+                totalPages={totalPages}
+                ariaLabel="Queue pagination"
+                getPageHref={(p) => `/expert/queue?page=${p}`}
+              />
             </footer>
           </>
         )}
       </div>
     </div>
-  );
-}
-
-function QueuePagination({
-  page,
-  totalPages,
-}: {
-  page: number;
-  totalPages: number;
-}) {
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
-
-  return (
-    <nav
-      className="flex flex-wrap items-center gap-2"
-      aria-label="Queue pagination"
-    >
-      {page <= 1 ? (
-        <span className="rounded-lg px-3 py-2 text-sm font-medium text-text-muted/50">
-          Previous
-        </span>
-      ) : (
-        <Link
-          href={`/expert/queue?page=${page - 1}`}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-input-bg"
-        >
-          Previous
-        </Link>
-      )}
-
-      {pages.map((p) =>
-        p === page ? (
-          <span
-            key={p}
-            className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-primary px-2 text-sm font-semibold text-white"
-            aria-current="page"
-          >
-            {p}
-          </span>
-        ) : (
-          <Link
-            key={p}
-            href={`/expert/queue?page=${p}`}
-            className="flex h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-surface px-2 text-sm font-medium text-text transition-colors hover:bg-input-bg"
-          >
-            {p}
-          </Link>
-        ),
-      )}
-
-      {page >= totalPages ? (
-        <span className="rounded-lg px-3 py-2 text-sm font-medium text-text-muted/50">
-          Next
-        </span>
-      ) : (
-        <Link
-          href={`/expert/queue?page=${page + 1}`}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-text transition-colors hover:bg-input-bg"
-        >
-          Next
-        </Link>
-      )}
-    </nav>
   );
 }

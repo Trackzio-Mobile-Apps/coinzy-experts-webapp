@@ -12,6 +12,11 @@ export function evaluationReportFontFaceCss(): string {
   return `@import url('${EVALUATION_REPORT_INTER_FONT_URL}');`;
 }
 
+/** Inline report CSS for canvas capture — no @import (avoids CORS cssRules errors). */
+export function evaluationReportCaptureStyles(): string {
+  return evaluationReportLayoutCss();
+}
+
 export function evaluationReportFontLinkHtml(): string {
   return `<link rel="stylesheet" href="${EVALUATION_REPORT_INTER_FONT_URL}" />`;
 }
@@ -24,39 +29,54 @@ export function evaluationReportLayoutCss(): string {
       flex-direction: column;
       align-items: center;
       gap: 24px;
-      width: 100%;
+      width: fit-content;
+      max-width: 100%;
+      margin-inline: auto;
+    }
+    .eval-report-pages-stack--preview {
+      width: fit-content;
     }
     .eval-report-page {
       width: ${t.page.maxWidthPx}px;
       min-width: ${t.page.maxWidthPx}px;
       max-width: ${t.page.maxWidthPx}px;
-      height: ${p.pageHeightPx}px;
-      min-height: ${p.pageHeightPx}px;
-      max-height: ${p.pageHeightPx}px;
+      flex-shrink: 0;
+      align-self: center;
+      height: auto;
+      min-height: 0;
+      max-height: none;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow: visible;
       padding: ${t.page.paddingYPx}px ${t.page.paddingXPx}px;
       background: ${c.canvas};
       border: 1px solid ${c.border};
       border-radius: 12px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        sans-serif;
       font-size: 14px;
       color: ${c.text};
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
+    .eval-report-page * {
+      font-family: inherit;
+    }
     .eval-report-page[data-report-export-page="1"] {
-      height: ${p.page1HeightPx}px;
       min-height: ${p.page1HeightPx}px;
-      max-height: ${p.page1HeightPx}px;
+      height: auto;
+      max-height: none;
+    }
+    .eval-report-pages-stack--preview .eval-report-page[data-report-export-page="1"],
+    .eval-report-pages-stack--preview .eval-report-page[data-report-export-page="2"] {
+      min-height: 0;
+      height: auto;
     }
     .eval-report-page[data-report-export-page="2"] {
-      height: ${p.page2HeightPx}px;
-      min-height: ${p.page2HeightPx}px;
-      max-height: ${p.page2HeightPx}px;
+      height: auto;
+      max-height: none;
     }
     .eval-report-page--capture {
       border-radius: 0;
@@ -66,6 +86,14 @@ export function evaluationReportLayoutCss(): string {
       top: 0;
       left: 0;
       transform: none;
+      width: ${t.page.maxWidthPx}px !important;
+      min-width: ${t.page.maxWidthPx}px !important;
+      max-width: ${t.page.maxWidthPx}px !important;
+      flex-shrink: 0 !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      overflow: visible !important;
     }
     .eval-report-hero-card,
     .eval-report-kv-card,
@@ -76,15 +104,17 @@ export function evaluationReportLayoutCss(): string {
       page-break-inside: avoid;
     }
     .eval-report-page-body {
-      flex: 1 1 auto;
+      flex: 0 0 auto;
       display: flex;
       flex-direction: column;
       gap: ${t.page.rowGapPx}px;
-      min-height: 0;
+      min-height: auto;
       width: 100%;
     }
     .eval-report-page-body--page-two {
+      flex: 0 0 auto;
       gap: ${t.page.rowGapPx}px;
+      width: 100%;
     }
     .eval-report-page-body--page-two .eval-report-design-block,
     .eval-report-page-body--page-two .eval-report-assessment-block {
@@ -137,7 +167,8 @@ export function evaluationReportLayoutCss(): string {
     .eval-report-header-right {
       text-align: right;
       flex: 0 0 auto;
-      max-width: 48%;
+      min-width: 0;
+      max-width: 55%;
     }
     .eval-report-report-title {
       margin: 0;
@@ -147,12 +178,21 @@ export function evaluationReportLayoutCss(): string {
       letter-spacing: 0.04em;
       color: ${c.primary};
       line-height: 1.2;
+      white-space: nowrap;
     }
     .eval-report-report-meta {
       margin: 8px 0 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+    .eval-report-meta-line {
+      margin: 0;
       font-size: ${t.header.metaSizePx}px;
       color: ${c.textMuted};
-      line-height: 1.45;
+      line-height: 1.4;
+      white-space: nowrap;
     }
     .eval-report-meta-value {
       font-weight: 700;
@@ -522,6 +562,7 @@ export function evaluationReportLayoutCss(): string {
       padding: ${t.hero.cardPaddingPx}px;
       display: grid;
       gap: ${t.section.blockGapPx}px;
+      overflow: visible;
     }
     .eval-report-field-block {
       display: block;
@@ -540,14 +581,26 @@ export function evaluationReportLayoutCss(): string {
       line-height: 1.45;
       color: ${c.text};
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .eval-report-auth-note {
       margin: 12px 0 0;
       font-size: 13px;
-      font-weight: 600;
-      line-height: 1.45;
+      font-weight: 400;
+      line-height: 1.6;
       color: ${c.text};
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .eval-report-field-value--grade {
+      font-weight: 600;
+      line-height: 1.45;
+    }
+    .eval-report-field-value--body {
+      font-weight: 400;
+      line-height: 1.6;
     }
     .eval-report-assessment-block {
       margin-top: 0;
@@ -568,6 +621,7 @@ export function evaluationReportLayoutCss(): string {
       border-radius: 8px;
       padding: 14px;
       width: 100%;
+      min-width: 0;
       box-sizing: border-box;
     }
     .eval-report-assessment-top {
@@ -576,6 +630,9 @@ export function evaluationReportLayoutCss(): string {
       align-items: center;
       column-gap: 20px;
       width: 100%;
+    }
+    .eval-report-assessment-top .eval-report-field-label {
+      min-width: 0;
     }
     .eval-report-auth-badge {
       display: inline-flex;
@@ -602,10 +659,14 @@ export function evaluationReportLayoutCss(): string {
     .eval-report-condition-card--plain {
       padding: 0;
       border-radius: 0;
+      background: transparent;
     }
     .eval-report-recommendation {
       padding: 0;
       width: 100%;
+    }
+    .eval-report-assessment-card .eval-report-field-block {
+      min-width: 0;
     }
     .eval-report-footer {
       margin-top: auto;
@@ -774,9 +835,19 @@ export function evaluationReportCaptureCss(): string {
     }
     .eval-report-page--capture .eval-report-field-value {
       margin-top: 6px !important;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+    }
+    .eval-report-page--capture .eval-report-field-value--grade {
+      font-weight: 600 !important;
+    }
+    .eval-report-page--capture .eval-report-field-value--body,
+    .eval-report-page--capture .eval-report-auth-note {
+      font-weight: 400 !important;
+      line-height: 1.6 !important;
     }
     .eval-report-page--capture .eval-report-auth-note {
       margin-top: 12px !important;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
     }
     .eval-report-page--capture .eval-report-auth-badge,
     .eval-report-page--capture .eval-report-rarity-badge {
