@@ -991,10 +991,6 @@ export function ExpertEvaluationRequestView({
                   <h2 className="text-xl font-semibold tracking-tight text-text">
                     Evaluation form
                   </h2>
-                  <p className="mt-1 text-sm text-text-muted">
-                    Fields marked with * are mandatory. Optional fields can be
-                    left blank.
-                  </p>
                 </div>
 
                 <div className={`${evaluationFormPanelWrapClass} px-4 py-5 sm:px-5`}>

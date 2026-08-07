@@ -13,7 +13,7 @@ export const QUEUE_VARIANT_STYLES: Record<
   pending_review: {
     accent: "border-l-expert-action-blue",
     badge: "bg-expert-badge-neutral text-expert-badge-neutral-text",
-    badgeLabel: "Pending Review",
+    badgeLabel: "In Queue",
     primaryButton:
       "bg-expert-action-blue hover:bg-expert-action-blue-hover",
   },
@@ -23,13 +23,6 @@ export const QUEUE_VARIANT_STYLES: Record<
     badgeLabel: "In Progress",
     primaryButton:
       "bg-expert-action-green hover:bg-expert-action-green-hover",
-  },
-  time_extended: {
-    accent: "border-l-expert-action-orange",
-    badge: "bg-expert-action-amber-soft text-expert-action-amber-text",
-    badgeLabel: "Time Extended",
-    primaryButton:
-      "bg-expert-action-orange hover:bg-expert-action-orange-hover",
   },
 };
 

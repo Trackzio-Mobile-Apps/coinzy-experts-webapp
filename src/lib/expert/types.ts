@@ -234,7 +234,7 @@ export type ExpertNavCounts = {
 export type QueueItemStatus = "in_progress" | "pending_review";
 
 /** Visual queue row variant (accent, badge, primary button). */
-export type QueueRowVariant = "pending_review" | "in_progress" | "time_extended";
+export type QueueRowVariant = "pending_review" | "in_progress";
 
 export type QueueListItem = {
   id: string;

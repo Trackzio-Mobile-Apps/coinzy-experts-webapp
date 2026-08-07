@@ -5,6 +5,7 @@ import { ExpertReportModalSkeleton } from "@/components/expert/ExpertSkeleton";
 import {
   buildEvaluationReportDisplay,
   buildEvaluationReportExpertDisplay,
+  EVALUATION_REPORT_LAYOUT_VERSION,
   type EvaluationReportDisplay,
 } from "@/lib/expert/evaluationReportView";
 import {
@@ -152,6 +153,7 @@ export function CertReportModal({
     try {
       await downloadEvaluationReportPdf(report, {
         previewRoot: previewRef.current,
+        version: EVALUATION_REPORT_LAYOUT_VERSION,
       });
     } catch (err) {
       console.error("PDF export failed:", err);
@@ -214,7 +216,10 @@ export function CertReportModal({
           ) : error ? (
             <p className="text-sm text-red-700">{error}</p>
           ) : report ? (
-            <ExpertEvaluationReportContent report={report} />
+            <ExpertEvaluationReportContent
+              report={report}
+              version={EVALUATION_REPORT_LAYOUT_VERSION}
+            />
           ) : null}
         </div>
       </div>

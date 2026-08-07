@@ -60,10 +60,10 @@
   --coinzy-expert-action-orange: #c2620e;
   --coinzy-expert-action-orange-hover: #a4520b;
 
-  /* ── Expert neutral badge (Pending Review) — Coin/Neutral/100 ─── */
-  --coinzy-expert-badge-neutral: #dfdfe0;
-  --coinzy-expert-badge-neutral-text: #3f3f46;
-  --coinzy-expert-badge-neutral-ring: rgba(168, 162, 158, 0.35);
+  /* ── Expert in-queue badge (offered / pending review) ─────────── */
+  --coinzy-expert-badge-neutral: #eef6ff;
+  --coinzy-expert-badge-neutral-text: #51a2ff;
+  --coinzy-expert-badge-neutral-ring: rgba(81, 162, 255, 0.25);
 
   /* ── Expert history status pills ──────────────────────────────── */
   --coinzy-expert-status-draft-bg: #f3f4f6;
