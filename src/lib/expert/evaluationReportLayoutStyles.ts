@@ -206,6 +206,7 @@ export function evaluationReportLayoutCss(): string {
     .eval-report-chip-row {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
       gap: 8px;
     }
     .eval-report-chip {
@@ -220,6 +221,8 @@ export function evaluationReportLayoutCss(): string {
       color: ${c.chipText};
       text-align: center;
       line-height: 1.2;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .eval-report-coin-title {
       margin: 0;
@@ -247,11 +250,10 @@ export function evaluationReportLayoutCss(): string {
     }
     .eval-report-summary-box {
       margin-top: 20px;
-      border-radius: 12px;
-      background: ${c.summaryBg};
-      padding: 18px;
+      border-radius: 8px;
+      padding: 8px 16px;
       display: grid;
-      gap: 16px;
+      gap: 12px;
       box-sizing: border-box;
     }
     .eval-report-sections-grid {
@@ -333,7 +335,6 @@ export function evaluationReportLayoutCss(): string {
     .eval-report-summary-value {
       text-align: right;
       font-weight: 700;
-      color: ${c.summaryText};
       white-space: nowrap;
     }
     .eval-report-stat-row {
@@ -538,6 +539,7 @@ export function evaluationReportLayoutCss(): string {
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
+    ${evaluationReportCaptureCss()}
   `;
 }
 
@@ -693,13 +695,22 @@ export function evaluationReportCaptureCss(): string {
     }
     .eval-report-page--capture .eval-report-chip {
       display: inline-block !important;
+      box-sizing: border-box !important;
       padding: 5px 12px !important;
       line-height: 16px !important;
       font-size: 12px !important;
       font-weight: 600 !important;
       text-align: center !important;
+      white-space: nowrap !important;
       border-radius: 999px !important;
       vertical-align: middle !important;
+      flex: 0 0 auto !important;
+    }
+    .eval-report-page--capture .eval-report-chip-row {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+      gap: 8px !important;
     }
     .eval-report-page--capture .eval-report-section-heading {
       display: flex !important;
@@ -714,7 +725,6 @@ export function evaluationReportCaptureCss(): string {
       flex-shrink: 0 !important;
     }
     .eval-report-page--capture .eval-report-hero-profile,
-    .eval-report-page--capture .eval-report-chip-row,
     .eval-report-page--capture .eval-report-coin-gallery {
       display: flex !important;
       align-items: center !important;
