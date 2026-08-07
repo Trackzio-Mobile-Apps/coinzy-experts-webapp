@@ -1,5 +1,6 @@
 import {
   buildQueueList,
+  filterActiveAcceptedRequests,
   isAcceptedRequestEligibleForQueue,
   isOfferEligibleForQueue,
   parseRequestPayload,
@@ -50,6 +51,28 @@ describe("buildQueueList deadline filtering", () => {
     const items = buildQueueList([], [request], nowMs);
     expect(items).toHaveLength(1);
     expect(items[0]?.variant).toBe("in_progress");
+  });
+
+  it("removes expired accepted requests from draft eligibility", () => {
+    const active = {
+      _id: "req1",
+      displayId: "16",
+      status: "accepted",
+      deadlineAt: "2026-08-10T12:00:00.000Z",
+    } as unknown as BackendRequest;
+    const expired = {
+      _id: "req2",
+      displayId: "17",
+      status: "accepted",
+      deadlineAt: "2026-08-06T11:59:59.999Z",
+    } as unknown as BackendRequest;
+
+    expect(filterActiveAcceptedRequests([active, expired], nowMs)).toHaveLength(
+      1,
+    );
+    expect(filterActiveAcceptedRequests([active, expired], nowMs)[0]?._id).toBe(
+      "req1",
+    );
   });
 
   it("keeps active offers and accepted requests with future deadlines", () => {

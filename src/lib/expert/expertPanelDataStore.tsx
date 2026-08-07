@@ -1,6 +1,9 @@
 "use client";
 
-import { buildQueueList } from "@/lib/expert/requestMappers";
+import {
+  buildQueueList,
+  filterActiveAcceptedRequests,
+} from "@/lib/expert/requestMappers";
 import {
   getAcceptedRequests,
   getExpertOffers,
@@ -202,9 +205,7 @@ export function ExpertPanelDataProvider({ children }: { children: ReactNode }) {
 
   const navCounts = useMemo<ExpertNavCounts>(() => {
     const queue = buildQueueList(offers, acceptedRequests).length;
-    // Count accepted requests that have local draft progress (server drafts
-    // hydrate this on open; Drafts page also loads server drafts).
-    const drafts = acceptedRequests.length;
+    const drafts = filterActiveAcceptedRequests(acceptedRequests).length;
     return { queue, drafts };
   }, [offers, acceptedRequests]);
 

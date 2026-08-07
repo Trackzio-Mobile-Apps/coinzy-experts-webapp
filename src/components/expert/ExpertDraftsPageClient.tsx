@@ -4,7 +4,10 @@ import { ExpertDraftsPageBody } from "@/components/expert/ExpertDraftsPageBody";
 import { evaluateFormProgress } from "@/lib/expert/evaluationForm";
 import { loadEvaluationDraft } from "@/lib/expert/evaluationDraftStorage";
 import { normalizeMongoId } from "@/lib/expert/format";
-import { mapRequestToDraftItem } from "@/lib/expert/requestMappers";
+import {
+  filterActiveAcceptedRequests,
+  mapRequestToDraftItem,
+} from "@/lib/expert/requestMappers";
 import { useExpertPanelData } from "@/lib/expert/expertPanelDataStore";
 import {
   extractReportIdFromRequest,
@@ -26,8 +29,9 @@ export function ExpertDraftsPageClient() {
     void (async () => {
       setLoadingDrafts(true);
       try {
+        const activeRequests = filterActiveAcceptedRequests(acceptedRequests);
         const rows = await Promise.all(
-          acceptedRequests.map(async (request) => {
+          activeRequests.map(async (request) => {
             const requestId = normalizeMongoId(request._id);
             const local = loadEvaluationDraft(requestId);
             const localProgress = local

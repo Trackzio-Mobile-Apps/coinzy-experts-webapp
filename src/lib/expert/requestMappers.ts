@@ -348,6 +348,16 @@ export function isAcceptedRequestEligibleForQueue(
   return !isDeadlineExceeded(deadlineAt, nowMs);
 }
 
+/** Accepted evaluations with an active deadline (queue + drafts). */
+export function filterActiveAcceptedRequests(
+  requests: BackendRequest[],
+  nowMs = Date.now(),
+): BackendRequest[] {
+  return requests.filter((request) =>
+    isAcceptedRequestEligibleForQueue(request, nowMs),
+  );
+}
+
 /** Pending offers that still belong on the queue (deadline active). */
 export function isOfferEligibleForQueue(
   offer: BackendOffer,
