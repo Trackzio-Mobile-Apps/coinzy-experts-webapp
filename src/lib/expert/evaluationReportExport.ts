@@ -1,5 +1,6 @@
 import {
   authenticityAssessmentTheme,
+  authenticitySummaryTheme,
   authenticityTone,
   EVALUATION_REPORT_TOKENS,
 } from "@/lib/expert/evaluationReportTokens";
@@ -248,12 +249,18 @@ function coinGalleryItemHtml(
   return `<div class="eval-report-coin-gallery-item" style="z-index:${zIndex};margin-left:${marginLeft}px">${content}${videoBadge}</div>`;
 }
 
-function summaryRowHtml(icon: string, label: string, value: string): string {
+function summaryRowHtml(
+  icon: string,
+  label: string,
+  value: string,
+  accentColor: string,
+  labelColor: string,
+): string {
   return `
     <div class="eval-report-summary-row">
-      <span style="color:${c.summaryIcon}">${icon}</span>
-      <span class="eval-report-summary-label">${escapeHtml(label)}</span>
-      <span class="eval-report-summary-value">${escapeHtml(value)}</span>
+      <span style="color:${accentColor}">${icon}</span>
+      <span class="eval-report-summary-label" style="color:${labelColor}">${escapeHtml(label)}</span>
+      <span class="eval-report-summary-value" style="color:${accentColor}">${escapeHtml(value)}</span>
     </div>`;
 }
 
@@ -279,16 +286,20 @@ function reportCoinCardHtml(
       ? `<span class="eval-report-rarity-badge">${escapeHtml(report.hero.rarity)}</span>`
       : "";
 
+  const summaryTheme = authenticitySummaryTheme(
+    authenticityTone(report.hero.authenticity),
+  );
+
   return `
     <div class="eval-report-coin-header">
       <h2 class="eval-report-coin-title">${escapeHtml(report.hero.coinTitle)}</h2>
       ${rarityBadge}
     </div>
     ${galleryHtml ? `<div class="eval-report-coin-gallery">${galleryHtml}</div>` : ""}
-    <div class="eval-report-summary-box">
-      ${summaryRowHtml("🛡", "Authenticity", report.hero.authenticity)}
-      ${summaryRowHtml("★", "Condition", report.hero.condition)}
-      ${summaryRowHtml("◎", "Est. Value", report.hero.estimatedValue)}
+    <div class="eval-report-summary-box" style="background:${summaryTheme.boxBg}">
+      ${summaryRowHtml("🛡", "Authenticity", report.hero.authenticity, summaryTheme.accentColor, summaryTheme.labelColor)}
+      ${summaryRowHtml("★", "Condition", report.hero.condition, summaryTheme.accentColor, summaryTheme.labelColor)}
+      ${summaryRowHtml("◎", "Est. Value", report.hero.estimatedValue, summaryTheme.accentColor, summaryTheme.labelColor)}
     </div>`;
 }
 
@@ -705,7 +716,7 @@ function assertCanvasHasContent(canvas: HTMLCanvasElement): void {
     [220, 920],
     [560, 180],
   ];
-  const bg = { r: 249, g: 248, b: 243 };
+  const bg = { r: 255, g: 255, b: 255 };
 
   let distinctPixels = 0;
   for (const [x, y] of samplePoints) {
@@ -743,7 +754,19 @@ function createOffscreenCaptureHost(): HTMLDivElement {
   return host;
 }
 
+function markReportPagesForCapture(pages: HTMLElement[]): () => void {
+  for (const page of pages) {
+    page.classList.add("eval-report-page--capture");
+  }
+  return () => {
+    for (const page of pages) {
+      page.classList.remove("eval-report-page--capture");
+    }
+  };
+}
+
 function normalizeCloneForCapture(clone: HTMLElement): void {
+  clone.classList.add("eval-report-page--capture");
   clone.querySelectorAll<HTMLElement>(".eval-report-hero-profile img").forEach((avatar) => {
     avatar.className = "eval-report-hero-avatar";
     avatar.removeAttribute("style");
@@ -956,7 +979,7 @@ async function exportReportPagesToPdf(
 
 async function preparePreviewPagesForCapture(
   previewPages: HTMLElement[],
-): Promise<void> {
+): Promise<() => void> {
   await ensureReportFontsLoaded(document);
   for (const page of previewPages) {
     await waitForElementImages(page);
@@ -965,6 +988,7 @@ async function preparePreviewPagesForCapture(
   await new Promise<void>((resolve) => {
     window.setTimeout(resolve, 150);
   });
+  return markReportPagesForCapture(previewPages);
 }
 
 async function exportReportViaIframeHtml(
@@ -985,13 +1009,18 @@ async function exportReportViaIframeHtml(
 
   try {
     await waitForFrameLayout(frameWindow);
-    await exportReportPagesToPdf(
-      pages,
-      report,
-      resolveMediaUrl,
-      logoDataUrl,
-      { kind: "document", captureWindow: frameWindow },
-    );
+    const unmarkCapture = markReportPagesForCapture(pages);
+    try {
+      await exportReportPagesToPdf(
+        pages,
+        report,
+        resolveMediaUrl,
+        logoDataUrl,
+        { kind: "document", captureWindow: frameWindow },
+      );
+    } finally {
+      unmarkCapture();
+    }
   } finally {
     cleanup();
   }
@@ -1016,8 +1045,9 @@ export async function downloadEvaluationReportPdf(
     : [];
 
   if (previewPages.length >= 2) {
+    let unmarkCapture = () => {};
     try {
-      await preparePreviewPagesForCapture(previewPages);
+      unmarkCapture = await preparePreviewPagesForCapture(previewPages);
       await exportReportPagesToPdf(
         previewPages,
         report,
@@ -1031,6 +1061,8 @@ export async function downloadEvaluationReportPdf(
         "Preview PDF capture failed, falling back to HTML export.",
         previewError,
       );
+    } finally {
+      unmarkCapture();
     }
   }
 

@@ -2,6 +2,7 @@ import { ExpertAvatar } from "@/components/expert/ExpertAvatar";
 import {
   authenticityAssessmentTheme,
   authenticityBadgeColors,
+  authenticitySummaryTheme,
   authenticityTone,
   EVALUATION_REPORT_TOKENS,
 } from "@/lib/expert/evaluationReportTokens";
@@ -160,16 +161,30 @@ function SummaryRow({
   icon,
   label,
   value,
+  accentColor,
+  labelColor,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  accentColor: string;
+  labelColor: string;
 }) {
   return (
     <div className="eval-report-summary-row">
-      <span style={{ color: t.colors.summaryIcon, flexShrink: 0 }}>{icon}</span>
-      <span className="eval-report-summary-label">{label}</span>
-      <span className="eval-report-summary-value">{value}</span>
+      <span style={{ color: accentColor, flexShrink: 0 }}>{icon}</span>
+      <span
+        className="eval-report-summary-label"
+        style={{ color: labelColor }}
+      >
+        {label}
+      </span>
+      <span
+        className="eval-report-summary-value"
+        style={{ color: accentColor }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -295,6 +310,9 @@ function ReportHeroSection({ report }: { report: EvaluationReportDisplay }) {
   const videoItems = report.media.filter((item) => item.kind === "video");
   const rarity = report.hero.rarity;
   const showRarityBadge = rarity !== "—";
+  const summaryTheme = authenticitySummaryTheme(
+    authenticityTone(report.hero.authenticity),
+  );
 
   return (
     <div className="eval-report-hero-grid">
@@ -380,21 +398,30 @@ function ReportHeroSection({ report }: { report: EvaluationReportDisplay }) {
           </div>
         ) : null}
 
-        <div className="eval-report-summary-box">
+        <div
+          className="eval-report-summary-box"
+          style={{ backgroundColor: summaryTheme.boxBg }}
+        >
           <SummaryRow
             icon={<ShieldIcon />}
             label="Authenticity"
             value={report.hero.authenticity}
+            accentColor={summaryTheme.accentColor}
+            labelColor={summaryTheme.labelColor}
           />
           <SummaryRow
             icon={<StarCircleIcon />}
             label="Condition"
             value={report.hero.condition}
+            accentColor={summaryTheme.accentColor}
+            labelColor={summaryTheme.labelColor}
           />
           <SummaryRow
             icon={<ValueCoinsIcon />}
             label="Est. Value"
             value={report.hero.estimatedValue}
+            accentColor={summaryTheme.accentColor}
+            labelColor={summaryTheme.labelColor}
           />
         </div>
       </section>

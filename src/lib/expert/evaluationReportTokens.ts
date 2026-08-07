@@ -9,7 +9,7 @@ export const EVALUATION_REPORT_TOKENS = {
   },
   colors: {
     /** Page and hero card background */
-    canvas: "#F9F8F3",
+    canvas: "#FFFFFF",
     text: "#1A1A1A",
     textMuted: "#6B6560",
     labelMuted: "#8A847C",
@@ -22,15 +22,25 @@ export const EVALUATION_REPORT_TOKENS = {
     statBoxBorder: "#E8E4DC",
     /** White panels (key-value cards, stat box) */
     surface: "#FFFFFF",
-    cardBg: "#F9F8F3",
+    /** Hero / nested panels on the report page */
+    cardBg: "#FFFFFF",
     logoBg: "#1c1917",
     expertAvatarBg: "#703838",
     expertAvatarText: "#FFFFFF",
-    /** Coin hero summary strip */
-    summaryBg: "#E8F6F1",
-    summaryIcon: "#52A88A",
+    /** Coin hero summary strip — shared label color */
     summaryLabel: "#1A1A1A",
-    summaryText: "#0E835B",
+    /** global/green/10 + value text (Authentic) */
+    summaryAuthenticBg: "#E8FAF0",
+    summaryAuthenticValue: "#0E835B",
+    /** global/yellow/10 + value text (Doubtful) */
+    summaryDoubtfulBg: "#FFF9E6",
+    summaryDoubtfulValue: "#C86B00",
+    /** global/red/10 + value text (Fake) */
+    summaryFakeBg: "#FFF3F0",
+    summaryFakeValue: "#8A1700",
+    /** Pending / unknown authenticity */
+    summaryNeutralBg: "#F5F3EE",
+    summaryNeutralValue: "#6B6560",
     /** Condition grade tint inside Expert Assessment (Authentic only) */
     conditionBg: "#F8F3F0",
     rarityBg: "#FDF2B3",
@@ -40,13 +50,13 @@ export const EVALUATION_REPORT_TOKENS = {
     chipText: "#6B6560",
     expertiseKicker: "#8A847C",
     /** Expert Assessment — Authentic tone */
-    assessmentAuthenticCardBg: "#E6F7EF",
+    assessmentAuthenticCardBg: "#E8FAF0",
     assessmentAuthenticBadgeBg: "#00C853",
     /** Expert Assessment — Fake tone */
-    assessmentFakeCardBg: "#FCEAE6",
+    assessmentFakeCardBg: "#FFF3F0",
     assessmentFakeBadgeBg: "#8A1700",
     /** Expert Assessment — Doubtful tone */
-    assessmentDoubtfulCardBg: "#FFFBEB",
+    assessmentDoubtfulCardBg: "#FFF9E6",
     assessmentDoubtfulBadgeBg: "#C86B00",
     assessmentBadgeText: "#FFFFFF",
     star: "#1A1A1A",
@@ -165,4 +175,39 @@ export function authenticityBadgeColors(tone: AuthenticityTone): {
     text: theme.badgeText,
     border: theme.badgeBg,
   };
+}
+
+/** Coin hero summary box — bg + accent text/icons by authenticity tone. */
+export function authenticitySummaryTheme(tone: AuthenticityTone): {
+  boxBg: string;
+  accentColor: string;
+  labelColor: string;
+} {
+  const { colors } = EVALUATION_REPORT_TOKENS;
+  switch (tone) {
+    case "authentic":
+      return {
+        boxBg: colors.summaryAuthenticBg,
+        accentColor: colors.summaryAuthenticValue,
+        labelColor: colors.summaryLabel,
+      };
+    case "doubtful":
+      return {
+        boxBg: colors.summaryDoubtfulBg,
+        accentColor: colors.summaryDoubtfulValue,
+        labelColor: colors.summaryLabel,
+      };
+    case "fake":
+      return {
+        boxBg: colors.summaryFakeBg,
+        accentColor: colors.summaryFakeValue,
+        labelColor: colors.summaryLabel,
+      };
+    default:
+      return {
+        boxBg: colors.summaryNeutralBg,
+        accentColor: colors.summaryNeutralValue,
+        labelColor: colors.summaryLabel,
+      };
+  }
 }
