@@ -5,9 +5,9 @@ import {
   EVALUATION_REPORT_TOKENS,
 } from "@/lib/expert/evaluationReportTokens";
 import {
-  evaluationReportFontFaceCss,
   evaluationReportFontLinkHtml,
   evaluationReportLayoutCss,
+  evaluationReportCaptureStyles,
   EVALUATION_REPORT_INTER_FONT_URL,
   REPORT_PAGE_HEIGHT_PX,
   REPORT_PAGE_WIDTH_PX,
@@ -131,7 +131,6 @@ async function inlineReportMediaUrls(
 
 function reportDocumentStyles(): string {
   return `
-    ${evaluationReportFontFaceCss()}
     ${evaluationReportLayoutCss()}
     * { box-sizing: border-box; }
     html, body {
@@ -384,11 +383,11 @@ function reportAssessmentHtml(report: EvaluationReportDisplay): string {
       </div>
       <div class="${conditionClass}" style="${conditionStyle}">
         <p class="eval-report-field-label">Condition Grade</p>
-        <p class="eval-report-field-value">${escapeHtml(report.assessment.condition)}</p>
+        <p class="eval-report-field-value eval-report-field-value--grade">${escapeHtml(report.assessment.condition)}</p>
       </div>
       <div class="eval-report-recommendation eval-report-field-block">
         <p class="eval-report-field-label">Expert Recommendation</p>
-        <p class="eval-report-field-value">${escapeHtml(report.assessment.recommendation)}</p>
+        <p class="eval-report-field-value eval-report-field-value--body">${escapeHtml(report.assessment.recommendation)}</p>
       </div>
     </div>`;
 }
@@ -414,7 +413,10 @@ function reportHeaderHtml(
       </div>
       <div class="eval-report-header-right">
         <h1 class="eval-report-report-title">${escapeHtml(EVALUATION_REPORT_TITLE)}</h1>
-        <p class="eval-report-report-meta">Request ID: <strong class="eval-report-meta-value">${escapeHtml(requestLabel)}</strong> | Date: <strong class="eval-report-meta-value">${escapeHtml(submittedDate)}</strong></p>
+        <div class="eval-report-report-meta">
+          <p class="eval-report-meta-line">Request ID: <strong class="eval-report-meta-value">${escapeHtml(requestLabel)}</strong></p>
+          <p class="eval-report-meta-line">Date: <strong class="eval-report-meta-value">${escapeHtml(submittedDate)}</strong></p>
+        </div>
       </div>
     </header>`;
 }
@@ -791,13 +793,24 @@ function createOffscreenCaptureHost(): HTMLDivElement {
     left: "-10000px",
     top: "0",
     width: `${REPORT_PAGE_WIDTH_PX}px`,
-    height: `${REPORT_PAGE_HEIGHT_PX}px`,
-    overflow: "hidden",
+    height: "auto",
+    overflow: "visible",
     pointerEvents: "none",
     zIndex: "-1",
   });
   document.body.appendChild(host);
   return host;
+}
+
+function injectReportCaptureStyles(container: HTMLElement): void {
+  const doc = container.ownerDocument;
+  const styleId = "eval-report-capture-styles";
+  if (doc.getElementById(styleId)) return;
+
+  const style = doc.createElement("style");
+  style.id = styleId;
+  style.textContent = evaluationReportCaptureStyles();
+  container.insertBefore(style, container.firstChild);
 }
 
 function markReportPagesForCapture(pages: HTMLElement[]): () => void {
@@ -938,6 +951,7 @@ async function capturePreviewPage(
 
   try {
     host.appendChild(clone);
+    injectReportCaptureStyles(host);
     normalizeCloneForCapture(clone);
     await inlineImagesInRoot(clone, resolveMediaUrl);
     await ensureReportFontsLoaded(document);
@@ -973,7 +987,18 @@ function addReportPagesToPdf(
     const { dataUrl, format } = canvasToPdfImageData(canvas);
 
     if (index > 0) pdf.addPage();
-    pdf.addImage(dataUrl, format, 0, 0, pageWidth, pageHeight);
+
+    const aspectRatio = canvas.height / canvas.width;
+    let renderWidth = pageWidth;
+    let renderHeight = renderWidth * aspectRatio;
+
+    if (renderHeight > pageHeight) {
+      renderHeight = pageHeight;
+      renderWidth = renderHeight / aspectRatio;
+    }
+
+    const offsetX = (pageWidth - renderWidth) / 2;
+    pdf.addImage(dataUrl, format, offsetX, 0, renderWidth, renderHeight);
   });
 
   return pdf;
