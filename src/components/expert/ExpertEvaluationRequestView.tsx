@@ -28,7 +28,7 @@ import {
   isDeadlineExceeded,
   normalizeMongoId,
 } from "@/lib/expert/format";
-import { DEADLINE_EXCEEDED_TOAST_KEY } from "@/lib/expert/constants";
+import { queueDeadlineExceededToast } from "@/lib/expert/deadlineExceededToast";
 import { useExpertSocket } from "@/lib/expert/expertSocketProvider";
 import {
   ensureDraftReport,
@@ -758,27 +758,33 @@ export function ExpertEvaluationRequestView({
   const setField = (key: string, value: string) => {
     setForm((prev) => {
       const nextForm = { ...prev, [key]: value };
-      if (showAllFieldErrors || fieldErrors[key]) {
-        setFieldErrors((current) => {
-          const next = { ...current };
-          const error = validateEvaluationField(
-            key,
-            nextForm[key] ?? "",
-            nextForm,
-          );
-          if (error) next[key] = error;
-          else delete next[key];
-          return next;
-        });
-      }
+      // Keep ref in sync before any same-tick blur validation (e.g. <select>).
+      formRef.current = nextForm;
+      setFieldErrors((current) => {
+        if (!showAllFieldErrors && !current[key]) return current;
+        const next = { ...current };
+        const error = validateEvaluationField(
+          key,
+          nextForm[key] ?? "",
+          nextForm,
+        );
+        if (error) next[key] = error;
+        else delete next[key];
+        return next;
+      });
       return nextForm;
     });
   };
 
   const handleFieldBlur = (key: string) => {
+    const currentForm = formRef.current;
     setFieldErrors((current) => {
       const next = { ...current };
-      const error = validateEvaluationField(key, form[key] ?? "", form);
+      const error = validateEvaluationField(
+        key,
+        currentForm[key] ?? "",
+        currentForm,
+      );
       if (error) next[key] = error;
       else delete next[key];
       return next;
@@ -1032,11 +1038,7 @@ export function ExpertEvaluationRequestView({
       <ExpertDeadlineExceededModal
         open={deadlineExceeded}
         onGoBack={() => {
-          try {
-            sessionStorage.setItem(DEADLINE_EXCEEDED_TOAST_KEY, "1");
-          } catch {
-            /* ignore */
-          }
+          queueDeadlineExceededToast(detail.displayId);
           allowNavigationRef.current = true;
           hasUnsavedChangesRef.current = false;
           router.push("/expert/drafts");

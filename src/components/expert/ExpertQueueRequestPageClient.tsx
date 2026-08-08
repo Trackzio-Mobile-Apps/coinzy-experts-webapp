@@ -60,28 +60,30 @@ export function ExpertQueueRequestPageClient({
     [requests, acceptedRequests, offers, requestId],
   );
 
-  // Keep the last known request so background refreshes cannot flash
-  // "Request not found" while offers/accepted lists catch up after Accept.
+  // Keep the last known request so when another expert accepts (offer leaves
+  // this expert's queue) we can still render the Figma "Request unavailable"
+  // screen instead of "Request not found".
   const [stickyRequest, setStickyRequest] = useState<BackendRequest | null>(
     null,
   );
-  const storeRequestKey = requestFromStore
-    ? `${normalizeMongoId(requestFromStore._id)}:${requestFromStore.status}`
-    : "";
-  const [seenStoreKey, setSeenStoreKey] = useState(storeRequestKey);
-  if (storeRequestKey !== seenStoreKey) {
-    setSeenStoreKey(storeRequestKey);
+
+  useEffect(() => {
     if (requestFromStore) {
       setStickyRequest(requestFromStore);
     }
-  } else if (
-    accepted &&
-    !requestFromStore &&
-    stickyRequest &&
-    stickyRequest.status !== "accepted"
-  ) {
-    setStickyRequest({ ...stickyRequest, status: "accepted" as const });
-  }
+  }, [requestFromStore]);
+
+  useEffect(() => {
+    if (
+      accepted &&
+      !requestFromStore &&
+      stickyRequest &&
+      stickyRequest.status !== "accepted"
+    ) {
+      setStickyRequest({ ...stickyRequest, status: "accepted" as const });
+    }
+  }, [accepted, requestFromStore, stickyRequest]);
+
   const request = requestFromStore ?? stickyRequest;
 
   const matchedOffer = useMemo(() => {
@@ -254,18 +256,44 @@ export function ExpertQueueRequestPageClient({
 
   if (!detail) {
     return (
-      <div className="rounded-2xl border border-border/80 bg-surface p-8 text-center shadow-sm">
-        <p className="text-lg font-semibold text-text">Request not found</p>
-        <p className="mt-2 text-sm text-text-muted">
-          This request is no longer in your queue.
-        </p>
-        <button
-          type="button"
-          onClick={() => router.push("/expert/queue")}
-          className="mt-6 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white"
+      <div className="rounded-2xl border border-border/80 bg-surface p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-text">
+              Ready to evaluate?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-text-muted">
+              Begin the evaluation to access the form, review the images, and
+              complete the report.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/expert/queue")}
+            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-primary px-6 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
+          >
+            Back to Queue
+          </button>
+        </div>
+
+        <div
+          role="status"
+          className="mt-4 flex gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"
         >
-          Back to queue
-        </button>
+          <span
+            className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-800 text-xs font-bold"
+            aria-hidden
+          >
+            i
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Request unavailable</p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
+              Another expert has already accepted this request. Please return to
+              the queue to pick a different one.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

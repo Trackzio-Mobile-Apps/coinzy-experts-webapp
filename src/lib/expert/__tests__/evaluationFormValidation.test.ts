@@ -41,4 +41,13 @@ describe("evaluationFormValidation", () => {
     );
     expect(validateEvaluationField("recommendation", "Hold", {})).toBeNull();
   });
+
+  it("accepts Authenticity dropdown options once selected", () => {
+    expect(validateEvaluationField("authenticity", "", {})).toMatch(
+      /required/i,
+    );
+    expect(validateEvaluationField("authenticity", "Fake", {})).toBeNull();
+    expect(validateEvaluationField("authenticity", "Authentic", {})).toBeNull();
+    expect(validateEvaluationField("authenticity", "Doubtful", {})).toBeNull();
+  });
 });

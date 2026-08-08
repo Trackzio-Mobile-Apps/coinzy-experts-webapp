@@ -94,6 +94,12 @@ export function evaluationReportLayoutCss(): string {
       min-height: 0 !important;
       max-height: none !important;
       overflow: visible !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    /* Keep page 1 at the designed frame height so PDF capture fills vertical space. */
+    .eval-report-page--capture[data-report-export-page="1"] {
+      min-height: ${p.page1HeightPx}px !important;
     }
     .eval-report-hero-card,
     .eval-report-kv-card,
@@ -722,24 +728,52 @@ export function evaluationReportCaptureCss(): string {
       margin-block-start: 0 !important;
       margin-block-end: 0 !important;
     }
+    /* Same html-to-image-safe spacing for page 1 and page 2 bodies. */
+    .eval-report-page--capture .eval-report-page-body,
     .eval-report-page--capture .eval-report-page-body--page-two {
-      display: block !important;
+      display: flex !important;
+      flex-direction: column !important;
+      flex: 1 1 auto !important;
+      width: 100% !important;
       gap: 0 !important;
+      min-height: 0 !important;
     }
+    .eval-report-page--capture .eval-report-page-body > * + *,
     .eval-report-page--capture .eval-report-page-body--page-two > * + * {
       margin-top: ${t.page.rowGapPx}px !important;
     }
-    .eval-report-page--capture .eval-report-hero-grid,
-    .eval-report-page--capture .eval-report-sections-grid {
+    .eval-report-page--capture .eval-report-hero-grid {
       display: flex !important;
       flex-direction: row !important;
       align-items: flex-start !important;
       gap: ${t.hero.gapPx}px !important;
+      flex: 0 0 auto !important;
+      width: 100% !important;
+    }
+    .eval-report-page--capture .eval-report-sections-grid {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: stretch !important;
+      gap: ${t.section.gapPx}px !important;
+      flex: 0 0 auto !important;
+      width: 100% !important;
     }
     .eval-report-page--capture .eval-report-hero-grid > *,
     .eval-report-page--capture .eval-report-sections-grid > * {
       flex: 1 1 0 !important;
       min-width: 0 !important;
+    }
+    /* Stretch General Information card to match Physical + Market column height. */
+    .eval-report-page--capture .eval-report-sections-grid > div:first-child {
+      display: flex !important;
+      flex-direction: column !important;
+      align-self: stretch !important;
+      min-height: 0 !important;
+    }
+    .eval-report-page--capture .eval-report-sections-grid > div:first-child .eval-report-kv-card {
+      flex: 1 1 auto !important;
+      height: auto !important;
+      min-height: 0 !important;
     }
     .eval-report-page--capture .eval-report-hero-v1-inner {
       display: flex !important;
@@ -757,11 +791,40 @@ export function evaluationReportCaptureCss(): string {
       margin-top: 0 !important;
     }
     .eval-report-page--capture .eval-report-sections-right {
-      display: block !important;
+      display: flex !important;
+      flex-direction: column !important;
       gap: 0 !important;
+      align-self: stretch !important;
+      height: auto !important;
+      min-height: 0 !important;
     }
     .eval-report-page--capture .eval-report-sections-right > * + * {
       margin-top: ${t.section.gapPx}px !important;
+    }
+    /* Let Design Details absorb remaining vertical space on page 1. */
+    .eval-report-page--capture[data-report-export-page="1"] .eval-report-design-block {
+      flex: 1 1 auto !important;
+      display: flex !important;
+      flex-direction: column !important;
+      min-height: 0 !important;
+      width: 100% !important;
+    }
+    .eval-report-page--capture[data-report-export-page="1"] .eval-report-design-card {
+      flex: 1 1 auto !important;
+      height: auto !important;
+      min-height: 0 !important;
+    }
+    .eval-report-page--capture[data-report-export-page="2"] .eval-report-assessment-block {
+      flex: 1 1 auto !important;
+      display: flex !important;
+      flex-direction: column !important;
+      min-height: 0 !important;
+      width: 100% !important;
+    }
+    .eval-report-page--capture[data-report-export-page="2"] .eval-report-assessment-card {
+      flex: 1 1 auto !important;
+      height: auto !important;
+      min-height: 0 !important;
     }
     .eval-report-page--capture .eval-report-summary-box,
     .eval-report-page--capture .eval-report-design-card,
