@@ -10,6 +10,7 @@ import {
 
 import { ExpertNavIcon } from "@/components/expert/ExpertNavIcons";
 import { ExpertLogoutConfirmModal } from "@/components/expert/ExpertLogoutConfirmModal";
+import { ExpertUnavailabilityConfirmModal } from "@/components/expert/ExpertUnavailabilityConfirmModal";
 import { ExpertAvatar } from "@/components/expert/ExpertAvatar";
 import type { ExpertNavCounts, ExpertUserSummary } from "@/lib/expert/types";
 import { clearExpertSession } from "@/lib/expert/authService";
@@ -160,6 +161,8 @@ function ExpertNavInner({
     profile?.isAvailableForRequests ?? true,
   );
   const [isSavingAvailability, setIsSavingAvailability] = useState(false);
+  const [unavailabilityConfirmOpen, setUnavailabilityConfirmOpen] =
+    useState(false);
 
   useEffect(() => {
     if (profile?.isAvailableForRequests != null) {
@@ -167,44 +170,77 @@ function ExpertNavInner({
     }
   }, [profile?.isAvailableForRequests]);
 
-  const handleAvailabilityChange = async (next: boolean) => {
-    if (isSavingAvailability) return;
+  const handleAvailabilityChange = useCallback(
+    async (next: boolean) => {
+      if (isSavingAvailability) return;
 
-    const previous = isAvailable;
-    setIsAvailable(next);
-    setIsSavingAvailability(true);
+      const previous = isAvailable;
+      setIsAvailable(next);
+      setIsSavingAvailability(true);
 
-    try {
-      const updated = await updateMyAvailability(next);
-      hydrateProfile({
-        ...updated,
-        isAvailableForRequests:
+      try {
+        const updated = await updateMyAvailability(next);
+        hydrateProfile({
+          ...updated,
+          isAvailableForRequests:
+            typeof updated.isAvailableForRequests === "boolean"
+              ? updated.isAvailableForRequests
+              : next,
+        });
+        setIsAvailable(
           typeof updated.isAvailableForRequests === "boolean"
             ? updated.isAvailableForRequests
             : next,
-      });
-      setIsAvailable(
-        typeof updated.isAvailableForRequests === "boolean"
-          ? updated.isAvailableForRequests
-          : next,
-      );
-    } catch (err) {
-      setIsAvailable(previous);
-      if (err instanceof ExpertProfileError && err.code === "unauthorized") {
+        );
+        setUnavailabilityConfirmOpen(false);
+      } catch (err) {
+        setIsAvailable(previous);
+        if (err instanceof ExpertProfileError && err.code === "unauthorized") {
+          return;
+        }
+        window.alert(
+          err instanceof Error
+            ? err.message
+            : "Unable to update availability. Please try again.",
+        );
+      } finally {
+        setIsSavingAvailability(false);
+      }
+    },
+    [hydrateProfile, isAvailable, isSavingAvailability],
+  );
+
+  const requestAvailabilityChange = useCallback(
+    (next: boolean) => {
+      if (isSavingAvailability) return;
+
+      // Turning off requires explicit confirmation before the API call.
+      if (!next) {
+        setUnavailabilityConfirmOpen(true);
         return;
       }
-      window.alert(
-        err instanceof Error
-          ? err.message
-          : "Unable to update availability. Please try again.",
-      );
-    } finally {
-      setIsSavingAvailability(false);
-    }
-  };
+
+      void handleAvailabilityChange(true);
+    },
+    [handleAvailabilityChange, isSavingAvailability],
+  );
+
+  const closeUnavailabilityConfirm = useCallback(() => {
+    if (isSavingAvailability) return;
+    setUnavailabilityConfirmOpen(false);
+  }, [isSavingAvailability]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <ExpertUnavailabilityConfirmModal
+        open={unavailabilityConfirmOpen}
+        isSaving={isSavingAvailability}
+        onCancel={closeUnavailabilityConfirm}
+        onConfirm={() => {
+          void handleAvailabilityChange(false);
+        }}
+      />
+
       <div className="mb-6 xl:mb-8 2xl:mb-10">
         <SidebarLogo />
       </div>
@@ -284,9 +320,7 @@ function ExpertNavInner({
         <AvailabilityToggle
           checked={isAvailable}
           disabled={isSavingAvailability}
-          onChange={(next) => {
-            void handleAvailabilityChange(next);
-          }}
+          onChange={requestAvailabilityChange}
         />
 
         <button

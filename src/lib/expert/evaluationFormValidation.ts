@@ -155,10 +155,15 @@ function validateFieldValue(
       if (trimmed.length < 3) return minLengthMessage(label, 3);
       if (trimmed.length > MAX_TEXT) return maxLengthMessage(label, MAX_TEXT);
       return null;
-    case "authenticity":
-      if (trimmed.length < 3) return minLengthMessage(label, 3);
-      if (trimmed.length > MAX_TEXT) return maxLengthMessage(label, MAX_TEXT);
+    case "authenticity": {
+      const allowed = new Set(
+        (field.options ?? []).map((option) => option.trim().toLowerCase()),
+      );
+      if (allowed.size > 0 && !allowed.has(trimmed.toLowerCase())) {
+        return `Select a valid ${label.toLowerCase()} option.`;
+      }
       return null;
+    }
     default:
       if (trimmed.length > MAX_LONG_TEXT) {
         return maxLengthMessage(label, MAX_LONG_TEXT);

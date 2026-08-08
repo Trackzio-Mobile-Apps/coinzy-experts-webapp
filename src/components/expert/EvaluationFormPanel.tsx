@@ -162,10 +162,7 @@ function EvaluationFormField({
           aria-required={required}
           aria-invalid={Boolean(error)}
           value={form[field.key] ?? ""}
-          onChange={(e) => {
-            onFieldChange(field.key, e.target.value);
-            onFieldBlur(field.key);
-          }}
+          onChange={(e) => onFieldChange(field.key, e.target.value)}
           onBlur={() => onFieldBlur(field.key)}
           className={`${fieldSelectClass} w-full ${invalidClass} ${
             (form[field.key] ?? "").trim() ? "text-text" : "text-text-muted/70"
